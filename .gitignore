@@ -1,0 +1,10 @@
+# macOS / editors
+.DS_Store
+.idea/
+
+# Local dev tooling scratch (not part of the plugin)
+.remember/
+.superpowers/
+
+# Release build artifacts
+dist/
