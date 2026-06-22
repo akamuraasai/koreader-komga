@@ -1,0 +1,26 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (C) 2026 Jonathan Willian
+
+require("spec.helper")
+local DownloadPath = require("domain/download_path")
+
+describe("DownloadPath.forBook", function()
+  it("joins sanitized series folder and zero-padded filename", function()
+    assert.equals("/root/One Piece/0001.cbz", DownloadPath.forBook("/root", "One Piece", 1))
+  end)
+  it("sanitizes FAT32-illegal characters in the series name", function()
+    assert.equals("/root/So I'm a Spider, So What/0010.cbz",
+      DownloadPath.forBook("/root", "So I'm a Spider, So What?", 10))
+  end)
+  it("keeps the decimal suffix for half chapters", function()
+    assert.equals("/root/X/0016.5.cbz", DownloadPath.forBook("/root", "X", 16.5))
+  end)
+  it("appends a disambiguating suffix before the extension when given", function()
+    assert.equals("/root/X/0000_b1.cbz", DownloadPath.forBook("/root", "X", 0, "b1"))
+    assert.equals("/root/X/0016.5_b2.cbz", DownloadPath.forBook("/root", "X", 16.5, "b2"))
+  end)
+  it("ignores an empty/nil suffix (name unchanged)", function()
+    assert.equals("/root/X/0000.cbz", DownloadPath.forBook("/root", "X", 0, ""))
+    assert.equals("/root/X/0000.cbz", DownloadPath.forBook("/root", "X", 0, nil))
+  end)
+end)
