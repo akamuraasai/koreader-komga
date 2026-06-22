@@ -1,0 +1,33 @@
+site_name: Komga Bulk Downloader
+site_description: Browse a Komga server from KOReader and bulk-download manga chapters.
+site_url: https://akamuraasai.github.io/koreader-komga/
+repo_url: https://github.com/akamuraasai/koreader-komga
+repo_name: akamuraasai/koreader-komga
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle: { icon: material/weather-night, name: Switch to dark mode }
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle: { icon: material/weather-sunny, name: Switch to light mode }
+  features:
+    - navigation.instant
+    - navigation.sections
+    - content.code.copy
+    - content.tabs.link
+
+nav:
+  - Home: index.md
+  - Get Started: get-started.md
+  - Usage: usage.md
+  - Useful links: links.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - attr_list
+  - md_in_html

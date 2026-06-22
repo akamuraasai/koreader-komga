@@ -8,3 +8,7 @@
 
 # Release build artifacts
 dist/
+
+# MkDocs site build + local venv
+website/site/
+website/.venv/
