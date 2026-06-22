@@ -5,6 +5,8 @@ Versioning: **CalVer** (`YYYY.MM.DD`).
 
 ## [Unreleased]
 
+## [2026.06.22] - 2026-06-22
+
 First public release.
 
 ### Added
