@@ -12,10 +12,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # KOReader runs under LuaJIT; lint/test under LuaJIT so behavior matches.
+      # 5.1, not LuaJIT: LuaJIT can't load the oversized luarocks manifest.
       - uses: leafo/gh-actions-lua@v11
         with:
-          luaVersion: "luajit-openresty"
+          luaVersion: "5.1"
       - uses: leafo/gh-actions-luarocks@v5
 
       - name: Install busted + luacheck

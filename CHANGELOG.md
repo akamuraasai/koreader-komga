@@ -19,7 +19,7 @@ First public release.
   chapters and bulk-download them in one action.
 - Downloads saved into per-series folders, so each series stays self-contained on
   the device.
-- Reading progress syncs back to Komga through KOReader's own sync — no extra setup.
+- Reading progress syncs back to Komga through KOReader's own sync, no extra setup.
 - UI strings reuse KOReader's existing translation catalog, so the plugin inherits
   KOReader's translations in every language it already supports (no catalog shipped).
 - CalVer versioning with the source of truth in `_meta.lua`.

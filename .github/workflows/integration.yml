@@ -1,5 +1,5 @@
 # Heavy KOReader-frontend integration run (builds koreader-base from source), so it's
-# scheduled + on-demand rather than a PR gate — ci.yml's unit job is the fast gate.
+# scheduled + on-demand rather than a PR gate; ci.yml's unit job is the fast gate.
 name: Integration (KOReader frontend)
 
 on:
@@ -33,11 +33,16 @@ jobs:
           sudo apt-get install --no-install-recommends -y libx11-dev libxcursor-dev libxext-dev \
             libxi-dev libxrandr-dev libxss-dev libxtst-dev
 
+      # Key on the KOReader rev, not hashFiles: the build writes into the cached path.
+      - name: Resolve KOReader revision
+        id: kover
+        run: echo "sha=$(git -C koreader rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Cache koreader-base build
         uses: actions/cache@v4
         with:
           path: koreader/base/build
-          key: kobase-${{ runner.os }}-${{ hashFiles('koreader/base/**') }}
+          key: kobase-${{ runner.os }}-${{ steps.kover.outputs.sha }}
 
       - name: Fetch third-party + build emulator
         working-directory: koreader
