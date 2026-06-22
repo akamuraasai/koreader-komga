@@ -7,6 +7,7 @@ local SeriesBrowser = require("views/series_browser")
 local CollectionsBrowser = require("views/collections_browser")
 local ChapterPicker = require("views/chapter_picker")
 local _ = require("gettext")
+local C_ = _.pgettext
 
 local HomeBrowser = {}
 
@@ -26,8 +27,8 @@ function HomeBrowser.show(api, ctx)
   end
 
   local items = {
-    { text = _("Current Reading"), callback = function()
-        openChapters(_("Current Reading"), true, function() return api:booksInProgress() end) end },
+    { text = _("Reading"), callback = function()
+        openChapters(_("Reading"), true, function() return api:booksInProgress() end) end },
     { text = _("Deck"), callback = function()
         openChapters(_("Deck"), true, function() return api:onDeck() end) end },
     { text = _("Last Updated"), callback = function()
@@ -36,8 +37,8 @@ function HomeBrowser.show(api, ctx)
         openSeries(_("Last Added Series"), function() return api:seriesNew() end, nil) end },
     { text = _("Collections"), callback = function()
         CollectionsBrowser.show(api, ctx) end },
-    { text = _("All"), callback = function()
-        openSeries(_("Komga series"),
+    { text = C_("Search text", "All"), callback = function()
+        openSeries(_("Series"),
           function() return api:searchSeriesAll("") end,
           function(q) return api:searchSeriesAll(q) end) end },
   }

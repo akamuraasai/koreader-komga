@@ -44,7 +44,7 @@ function Downloader.run(api, dest_root, books)
     Trapper:clear()
     UIManager:show(InfoMessage:new{ text = T(
       _("%1\nDownloaded: %2\nSkipped (exists): %3\nFailed: %4\nFolder: %5"),
-      stopped and _("Stopped.") or _("Done."), ok_count, skip_count, fail_count, dest_root) })
+      stopped and _("Stopped.") or _("Done"), ok_count, skip_count, fail_count, dest_root) })
   end)
 end
 

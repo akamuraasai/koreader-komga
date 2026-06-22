@@ -28,7 +28,7 @@ function CollectionsBrowser.show(api, ctx)
         collection = c,
       }
     end
-    if #(res.items or {}) == 0 then items[#items + 1] = { text = _("(no collections)") } end
+    if #(res.items or {}) == 0 then items[#items + 1] = { text = _("No items") } end
     menu:switchItemTable(_("Collections"), items)
   end
 

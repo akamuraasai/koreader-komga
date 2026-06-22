@@ -56,7 +56,7 @@ function ChapterPicker.show(opts, on_download)
   local function rebuild()
     local items = {}
     if #books == 0 then
-      items[#items + 1] = { text = _("(nothing here)") }
+      items[#items + 1] = { text = _("No items") }
     end
     for _, b in ipairs(books) do
       items[#items + 1] = {

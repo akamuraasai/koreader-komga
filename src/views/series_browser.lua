@@ -18,7 +18,7 @@ function SeriesBrowser.show(opts, on_pick)
 
   local function fillItems(res)
     local items = {}
-    if opts.search then items[#items + 1] = { text = _("Search series…"), is_search = true } end
+    if opts.search then items[#items + 1] = { text = _("Search"), is_search = true } end
     items[#items + 1] = { text = "↻ " .. _("Refresh"), is_refresh = true }
     for _, s in ipairs(res.items or {}) do
       items[#items + 1] = {
@@ -26,7 +26,7 @@ function SeriesBrowser.show(opts, on_pick)
         series = s,
       }
     end
-    if #(res.items or {}) == 0 then items[#items + 1] = { text = _("(nothing here)") } end
+    if #(res.items or {}) == 0 then items[#items + 1] = { text = _("No items") } end
     menu:switchItemTable(opts.title, items)
   end
 
@@ -37,7 +37,7 @@ function SeriesBrowser.show(opts, on_pick)
   local function openSearch()
     local dlg
     dlg = InputDialog:new{
-      title = _("Search series"),
+      title = _("Search"),
       input = "",
       buttons = {{
         { text = _("Cancel"), id = "close", callback = function() UIManager:close(dlg) end },

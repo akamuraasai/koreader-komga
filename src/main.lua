@@ -22,7 +22,7 @@ function Komga:addToMainMenu(menu_items)
     sorting_hint = "tools",
     sub_item_table = {
       { text = _("Browse & download"), callback = function() self:onBrowse() end },
-      { text = _("Server settings"), callback = function() self:showConfig() end },
+      { text = _("Settings"), callback = function() self:showConfig() end },
     },
   }
 end
@@ -30,9 +30,9 @@ end
 function Komga:showConfig()
   local dialog
   dialog = MultiInputDialog:new{
-    title = _("Komga server"),
+    title = _("Server"),
     fields = {
-      { description = _("Base URL"), text = self.settings:get("base_url") or "https://" },
+      { description = _("URL"), text = self.settings:get("base_url") or "https://" },
       { description = _("API key"), text = self.settings:get("api_key") or "", text_type = "password" },
     },
     buttons = {{
@@ -45,7 +45,7 @@ function Komga:showConfig()
           self.settings:set("base_url", url)
           self.settings:set("api_key", key)
           UIManager:close(dialog)
-          UIManager:show(InfoMessage:new{ text = _("Saved.") })
+          UIManager:show(InfoMessage:new{ text = _("Saved") })
         end },
     }},
   }
