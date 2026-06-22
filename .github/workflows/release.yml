@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: build + publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need tag history for the commit appendix
+
+      - name: Resolve version + validate against _meta.lua
+        id: ver
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          META_VERSION="$(grep -oE 'version[[:space:]]*=[[:space:]]*"[^"]+"' src/_meta.lua | grep -oE '"[^"]+"' | tr -d '"')"
+          if [ "$META_VERSION" != "$VERSION" ]; then
+            echo "::error::Tag $TAG (version $VERSION) != src/_meta.lua version $META_VERSION"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          case "$VERSION" in
+            *-*) echo "prerelease=true"  >> "$GITHUB_OUTPUT" ;;
+            *)   echo "prerelease=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Build plugin zip
+        run: |
+          rm -rf dist && mkdir dist
+          cp -r src dist/komga.koplugin
+          (cd dist && zip -r "komga.koplugin-${{ steps.ver.outputs.tag }}.zip" komga.koplugin)
+          ls -l dist
+
+      - name: Assemble release notes
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          TAG="${{ steps.ver.outputs.tag }}"
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { f=1; next }
+            /^## \[/ { f=0 }
+            f
+          ' CHANGELOG.md > notes.md
+          PREV="$(git tag --list 'v*' --sort=-v:refname | grep -vx "$TAG" | head -n1 || true)"
+          {
+            echo
+            echo "### Commits"
+            if [ -n "$PREV" ]; then
+              git log "$PREV..$TAG" --oneline --no-merges
+            else
+              git log "$TAG" --oneline --no-merges
+            fi
+          } >> notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.ver.outputs.tag }}
+          body_path: notes.md
+          prerelease: ${{ steps.ver.outputs.prerelease }}
+          files: dist/komga.koplugin-${{ steps.ver.outputs.tag }}.zip

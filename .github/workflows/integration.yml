@@ -1,0 +1,56 @@
+# Heavy KOReader-frontend integration run (builds koreader-base from source), so it's
+# scheduled + on-demand rather than a PR gate — ci.yml's unit job is the fast gate.
+name: Integration (KOReader frontend)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * 1" # weekly, Monday 05:00 UTC
+
+jobs:
+  integration:
+    name: kodev test front
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: koreader-komga
+
+      - name: Checkout KOReader
+        uses: actions/checkout@v4
+        with:
+          repository: koreader/koreader
+          path: koreader
+          submodules: recursive
+
+      - name: Install build dependencies (per koreader/doc/Building.md)
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y autoconf automake build-essential \
+            ca-certificates cmake gcc-multilib gettext git libtool libtool-bin meson \
+            nasm ninja-build patch pkg-config unzip wget
+          # SDL3 is auto-built by koreader if absent; provide its X11 build deps.
+          sudo apt-get install --no-install-recommends -y libx11-dev libxcursor-dev libxext-dev \
+            libxi-dev libxrandr-dev libxss-dev libxtst-dev
+
+      - name: Cache koreader-base build
+        uses: actions/cache@v4
+        with:
+          path: koreader/base/build
+          key: kobase-${{ runner.os }}-${{ hashFiles('koreader/base/**') }}
+
+      - name: Fetch third-party + build emulator
+        working-directory: koreader
+        run: |
+          ./kodev fetch-thirdparty
+          ./kodev build
+
+      - name: Wire the plugin + integration spec into koreader
+        run: |
+          ln -sfn "$GITHUB_WORKSPACE/koreader-komga/src" koreader/plugins/komga.koplugin
+          ln -sfn "$GITHUB_WORKSPACE/koreader-komga/spec/integration/komga_spec.lua" koreader/spec/unit/komga_spec.lua
+
+      - name: Run integration tests
+        working-directory: koreader
+        # kodev's meson runner registers the test by basename minus "_spec.lua".
+        run: ./kodev test front komga
