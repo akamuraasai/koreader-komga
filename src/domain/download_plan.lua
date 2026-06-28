@@ -5,19 +5,25 @@ local DownloadPath = require("domain/download_path")
 
 local DownloadPlan = {}
 
--- Map each book in a batch to a UNIQUE destination path, disambiguating collisions
--- (same/absent numberSort -> same name) with the book id; otherwise the second file
--- would be silently skipped as "already exists". Pure (testable without download I/O).
--- Returns a list of { book = <book>, dest = <absolute path> }.
+local function keyOf(b) return tostring(b.seriesTitle) .. "\0" .. tostring(b.sort) end
+
+-- Map each book to a UNIQUE destination + its series dir. Any (seriesTitle, sort) key
+-- shared by more than one book in `books` makes ALL its books id-suffixed, so a book's
+-- on-disk name depends only on its identity within a fixed set -- never on iteration
+-- order. Returns { { book, dest, dir }, ... } in input order. Pure.
 function DownloadPlan.resolve(books, root)
-  local used, plan = {}, {}
+  local counts = {}
   for _, b in ipairs(books) do
-    local dest = DownloadPath.forBook(root, b.seriesTitle, b.sort)
-    if used[dest] then
-      dest = DownloadPath.forBook(root, b.seriesTitle, b.sort, b.id)
-    end
-    used[dest] = true
-    plan[#plan + 1] = { book = b, dest = dest }
+    local k = keyOf(b); counts[k] = (counts[k] or 0) + 1
+  end
+  local plan = {}
+  for _, b in ipairs(books) do
+    local suffix = counts[keyOf(b)] > 1 and b.id or nil
+    plan[#plan + 1] = {
+      book = b,
+      dest = DownloadPath.forBook(root, b.seriesTitle, b.sort, suffix),
+      dir = DownloadPath.dirFor(root, b.seriesTitle),
+    }
   end
   return plan
 end

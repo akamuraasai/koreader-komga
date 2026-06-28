@@ -9,10 +9,17 @@ local function urlencode(s)
   end))
 end
 
+function KomgaParse.normalizeBase(url)
+  local s = (url or ""):gsub("^%s+", ""):gsub("%s+$", "")
+  if s == "" then return "" end
+  if not s:find("^%w[%w+.-]*://") then s = "https://" .. s end
+  return (s:gsub("/+$", ""))
+end
+
 function KomgaParse.buildSeriesSearchUrl(base, query, page, size)
   return string.format(
     "%s/api/v1/series?search=%s&page=%d&size=%d&sort=metadata.titleSort,asc",
-    base, urlencode(query or ""), page or 0, size or 20)
+    base, urlencode(query or ""), page, size)
 end
 
 function KomgaParse.buildBooksUrl(base, seriesId)
@@ -27,32 +34,32 @@ end
 function KomgaParse.buildBooksInProgressUrl(base, page, size)
   return string.format(
     "%s/api/v1/books?read_status=IN_PROGRESS&sort=readProgress.readDate,desc&page=%d&size=%d",
-    base, page or 0, size or 200)
+    base, page, size)
 end
 
 function KomgaParse.buildOnDeckUrl(base, page, size)
-  return string.format("%s/api/v1/books/ondeck?page=%d&size=%d", base, page or 0, size or 500)
+  return string.format("%s/api/v1/books/ondeck?page=%d&size=%d", base, page, size)
 end
 
 function KomgaParse.buildLatestBooksUrl(base, page, size)
-  return string.format("%s/api/v1/books/latest?page=%d&size=%d", base, page or 0, size or 200)
+  return string.format("%s/api/v1/books/latest?page=%d&size=%d", base, page, size)
 end
 
 function KomgaParse.buildNewSeriesUrl(base, page, size)
-  return string.format("%s/api/v1/series/new?page=%d&size=%d", base, page or 0, size or 200)
+  return string.format("%s/api/v1/series/new?page=%d&size=%d", base, page, size)
 end
 
 function KomgaParse.buildCollectionsUrl(base, page, size)
-  return string.format("%s/api/v1/collections?page=%d&size=%d", base, page or 0, size or 500)
+  return string.format("%s/api/v1/collections?page=%d&size=%d", base, page, size)
 end
 
 function KomgaParse.buildCollectionSeriesUrl(base, collectionId, page, size)
   return string.format("%s/api/v1/collections/%s/series?page=%d&size=%d",
-    base, collectionId, page or 0, size or 500)
+    base, collectionId, page, size)
 end
 
 function KomgaParse.parseSeriesPage(t)
-  local out = { total = t.totalElements or 0, items = {} }
+  local out = { totalPages = t.totalPages or 1, items = {} }
   for _, s in ipairs(t.content or {}) do
     out.items[#out.items + 1] = {
       id = s.id,
@@ -65,7 +72,7 @@ function KomgaParse.parseSeriesPage(t)
 end
 
 function KomgaParse.parseBooksPage(t)
-  local out = { total = t.totalElements or 0, items = {} }
+  local out = { totalPages = t.totalPages or 1, items = {} }
   for _, b in ipairs(t.content or {}) do
     -- rapidjson decodes JSON null to a userdata sentinel, NOT nil -- so an unread
     -- book's readProgress (null) must be type-checked as a table, not `~= nil`.
@@ -75,7 +82,9 @@ function KomgaParse.parseBooksPage(t)
     local md = type(b.metadata) == "table" and b.metadata or {}
     out.items[#out.items + 1] = {
       id = b.id,
-      seriesId = b.seriesId,
+      -- Mixed-series views (Reading/Deck/Latest) keep the DTO's own seriesTitle; Komga
+      -- always sets it. If ever absent, the row shows "?" and downloads group under "_/"
+      -- (graceful, never a crash) -- single-series leaves backfill via applySeriesTitle.
       seriesTitle = b.seriesTitle,
       number = md.number or "?",
       sort = md.numberSort or 0,
@@ -87,7 +96,7 @@ function KomgaParse.parseBooksPage(t)
 end
 
 function KomgaParse.parseCollectionsPage(t)
-  local out = { total = t.totalElements or 0, items = {} }
+  local out = { totalPages = t.totalPages or 1, items = {} }
   for _, c in ipairs(t.content or {}) do
     local seriesIds = type(c.seriesIds) == "table" and c.seriesIds or {}
     out.items[#out.items + 1] = {

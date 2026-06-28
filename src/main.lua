@@ -39,8 +39,8 @@ function Komga:showConfig()
       { text = _("Cancel"), id = "close", callback = function() UIManager:close(dialog) end },
       { text = _("Save"), callback = function()
           local f = dialog:getFields()
-          local url = (f[1] or ""):gsub("%s+$", "")
-          url = url:gsub("/+$", "")
+          local KomgaParse = require("api/komga_parse")
+          local url = KomgaParse.normalizeBase(f[1] or "")
           local key = (f[2] or ""):gsub("^%s*(.-)%s*$", "%1")
           self.settings:set("base_url", url)
           self.settings:set("api_key", key)
@@ -70,13 +70,13 @@ function Komga:openHome()
   local api = KomgaApi.new{ base_url = self.settings:get("base_url"), api_key = self.settings:get("api_key") }
   HomeBrowser.show(api, {
     download_dir = self.settings:downloadDir(),
-    on_download = function(books) self:runDownloads(api, books) end,
+    on_download = function(books, all) self:runDownloads(api, books, all) end,
   })
 end
 
-function Komga:runDownloads(api, books)
+function Komga:runDownloads(api, books, all)
   local Downloader = require("domain/downloader")
-  Downloader.run(api, self.settings:downloadDir(), books)
+  Downloader.run(api, self.settings:downloadDir(), books, all)
 end
 
 return Komga
