@@ -50,6 +50,7 @@ local function fake_api(overrides)
     booksLatest      = function() return { items = sample_books() } end,
     seriesNew        = function() return { items = sample_series() } end,
     searchSeriesAll  = function(_self, _q) return { items = sample_series() } end,
+    searchSeriesPage = function(_self, _q) return { items = sample_series() } end,
     listCollections  = function() return { items = sample_collections() } end,
     collectionSeries = function(_self, _id) return { items = sample_series() } end,
     listBooks        = function(_self, _id) return { items = sample_books() } end,
@@ -109,9 +110,9 @@ local function install_stubs()
   orig.wrap, orig.info, orig.clear = Trapper.wrap, Trapper.info, Trapper.clear
   orig.isk_id, orig.isk_mid = InputDialog.onShowKeyboard, MultiInputDialog.onShowKeyboard
 
-  UiUtil.loadWithTrapper = function(_label, fetch, onOk)
-    local res = fetch()
-    if res then onOk(res) end
+  UiUtil.loadWithTrapper = function(_label, fetch, onOk, onErr)
+    local res, err = fetch()
+    if res then onOk(res) elseif onErr then onErr(err) end
   end
   Trapper.wrap  = function(_self, fn) return fn() end
   Trapper.info  = function(_self, text) return trapper_go == nil or trapper_go(text) end
@@ -182,17 +183,22 @@ describe("Komga plugin — UI integration (real KOReader frontend)", function()
     end)
 
     it("downloads the chapters chosen via the actions popup (end-to-end)", function()
-      local got
-      ChapterPicker.show({ title = "One Piece", books = sample_books() },
-        function(chosen) got = chosen end)
+      local got_chosen, got_all
+      local books = sample_books()
+      ChapterPicker.show({ title = "One Piece", books = books },
+        function(chosen, all) got_chosen = chosen; got_all = all end)
       local menu = last_menu()
       menu.onLeftButtonTap()
       local dialog = last_dialog()
       assert.is_truthy(dialog)
       assert.is_true(tap_button(dialog, "Select unread"))
       assert.is_true(tap_button(dialog, "Download"))
-      assert.is_truthy(got)
-      assert.equals(2, #got)
+      assert.is_truthy(got_chosen)
+      assert.equals(2, #got_chosen)
+      -- on_download must receive the full visible book list as its second argument
+      -- so Downloader.run can resolve collision suffixes over the complete set.
+      assert.is_truthy(got_all)
+      assert.equals(3, #got_all)
     end)
   end)
 
@@ -278,6 +284,14 @@ describe("Komga plugin — UI integration (real KOReader frontend)", function()
     it("shows 'No items' when the list is empty", function()
       SeriesBrowser.show({ title = "Komga", fetch = function() return { items = {} } end }, function() end)
       local menu = last_menu()
+      assert.equals("No items", menu.item_table[#menu.item_table].text)
+    end)
+
+    it("renders the Refresh row (not a blank menu) when the first load errors", function()
+      SeriesBrowser.show({ title = "Komga", fetch = function() return nil, "boom" end }, function() end)
+      local menu = last_menu()
+      assert.is_truthy(menu)
+      assert.equals("↻ Refresh", menu.item_table[1].text)
       assert.equals("No items", menu.item_table[#menu.item_table].text)
     end)
 
@@ -406,6 +420,39 @@ describe("Komga plugin — UI integration (real KOReader frontend)", function()
       assert.equals("▢ One Piece #2 ✔", menu.item_table[2].text)
       os.remove(path)
     end)
+
+    it("prunes phantom selections from the count when Refresh shrinks the list", function()
+      local first = sample_books()                 -- b1,b2,b3
+      local nextSet = { first[1] }                 -- only b1 survives a refresh
+      local n = 0
+      local _, dlg = open_actions({ title = "One Piece", mixed = false,
+        fetch = function() n = n + 1; return { items = n == 1 and first or nextSet } end })
+      assert.is_true(tap_button(dlg, "Select all"))     -- selects 3
+      last_menu().onLeftButtonTap()
+      assert.is_true(tap_button(last_dialog(), "Refresh"))  -- list shrinks to 1
+      last_menu().onLeftButtonTap()
+      local found
+      for _, row in ipairs(last_dialog().buttons) do
+        for _, b in ipairs(row) do if b.text:find("Download", 1, true) then found = b.text end end
+      end
+      assert.equals("⬇ Download (1)", found)            -- not the phantom (3)
+    end)
+
+    it("marks a same-sort collision twin against its disambiguated path, not the bare name", function()
+      local dir = tmpdir()
+      local twins = {
+        { id = "x1", seriesTitle = "Dup", number = "1", sort = 1, completed = false, inProgress = false },
+        { id = "x2", seriesTitle = "Dup", number = "1b", sort = 1, completed = false, inProgress = false },
+      }
+      local plan = require("domain/download_plan").resolve(twins, dir)
+      util.makePath(plan[2].dir)
+      local f = io.open(plan[2].dest, "w"); f:write("x"); f:close()  -- only the SECOND twin on disk
+      ChapterPicker.show({ title = "Dup", books = twins, download_dir = dir }, function() end)
+      local menu = last_menu()
+      assert.is_nil(menu.item_table[1].text:find("⤓", 1, true))      -- first twin: not downloaded
+      assert.is_truthy(menu.item_table[2].text:find("⤓", 1, true))   -- second twin: downloaded
+      os.remove(plan[2].dest)
+    end)
   end)
 
   describe("downloader", function()
@@ -453,6 +500,65 @@ describe("Komga plugin — UI integration (real KOReader frontend)", function()
       local msg = last_info().text
       assert.is_truthy(msg:find("Stopped.", 1, true))
       assert.is_truthy(msg:find("Downloaded: 1", 1, true))
+    end)
+
+    it("counts a download as failed when its folder cannot be created", function()
+      local dir = tmpdir()
+      local real = util.makePath
+      util.makePath = function() end  -- no-op: directory is never created
+      -- downloadBook returns true (filesystem-independent) so only ensureDir's
+      -- result gates the outcome; the fix must return false to reach fail_count.
+      Downloader.run(fake_api({ downloadBook = function() return true end }), dir .. "/sub", sample_books())
+      util.makePath = real
+      assert.is_truthy(last_info().text:find("Failed: 3", 1, true))
+    end)
+
+    it("routes a mixed-series batch into one folder per series", function()
+      local dir = tmpdir()
+      local mixed = {
+        { id = "a", seriesTitle = "One Piece", number = "1", sort = 1 },
+        { id = "b", seriesTitle = "Naruto",    number = "5", sort = 5 },
+      }
+      Downloader.run(fake_api({ downloadBook = writer() }), dir, mixed)
+      assert.equals("file", require("libs/libkoreader-lfs").attributes(dir .. "/One Piece/0001.cbz", "mode"))
+      assert.equals("file", require("libs/libkoreader-lfs").attributes(dir .. "/Naruto/0005.cbz", "mode"))
+    end)
+
+    -- Regression: two chapters with the same seriesTitle+sort (twins) downloaded in
+    -- separate actions must each get their disambiguated suffix (_id) and NEITHER must
+    -- be silently skipped. The old 3-arg Downloader.run resolved over the selected
+    -- subset alone, so the second twin (alone in its set) resolved to the same bare
+    -- path as the first and was skipped. The fix passes allBooks so both runs agree on
+    -- the suffixed destinations.
+    it("downloads both same-sort twins when they are downloaded in separate actions", function()
+      local lfs = require("libs/libkoreader-lfs")
+      local dir = tmpdir()
+      local twins = {
+        { id = "t1", seriesTitle = "Dup", number = "1",  sort = 1 },
+        { id = "t2", seriesTitle = "Dup", number = "1b", sort = 1 },
+      }
+
+      -- First action: select only twin t1, but pass both as allBooks.
+      Downloader.run(fake_api({ downloadBook = writer() }), dir, { twins[1] }, twins)
+      local msg1 = last_info().text
+      assert.is_truthy(msg1:find("Downloaded: 1", 1, true))
+      assert.is_truthy(msg1:find("Skipped (exists): 0", 1, true))
+
+      -- Second action: select only twin t2, but pass both as allBooks.
+      Downloader.run(fake_api({ downloadBook = writer() }), dir, { twins[2] }, twins)
+      local msg2 = last_info().text
+      assert.is_truthy(msg2:find("Downloaded: 1", 1, true),
+        "second twin should download, not be skipped; got: " .. msg2)
+      assert.is_truthy(msg2:find("Skipped (exists): 0", 1, true),
+        "second twin must not be skipped; got: " .. msg2)
+
+      -- Both disambiguated files must exist on disk.
+      local DownloadPlan = require("domain/download_plan")
+      local plan = DownloadPlan.resolve(twins, dir)
+      assert.equals("file", lfs.attributes(plan[1].dest, "mode"),
+        "first twin file missing: " .. plan[1].dest)
+      assert.equals("file", lfs.attributes(plan[2].dest, "mode"),
+        "second twin file missing: " .. plan[2].dest)
     end)
   end)
 

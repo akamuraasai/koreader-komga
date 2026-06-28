@@ -21,19 +21,16 @@ function CollectionsBrowser.show(api, ctx)
   end
 
   local function fillItems(res)
-    local items = {{ text = "↻ " .. _("Refresh"), is_refresh = true }}
+    local rows = {}
     for _, c in ipairs(res.items or {}) do
-      items[#items + 1] = {
-        text = string.format("%s  (%d)", c.name, c.seriesCount),
-        collection = c,
-      }
+      rows[#rows + 1] = { text = string.format("%s  (%d)", c.name, c.seriesCount), collection = c }
     end
-    if #(res.items or {}) == 0 then items[#items + 1] = { text = _("No items") } end
-    menu:switchItemTable(_("Collections"), items)
+    UiUtil.listMenu(menu, _("Collections"), rows, {})
   end
 
   local function load()
-    UiUtil.loadWithTrapper(_("Loading…"), function() return api:listCollections() end, fillItems)
+    UiUtil.loadWithTrapper(_("Loading…"), function() return api:listCollections() end,
+      fillItems, function() fillItems({ items = {} }) end)
   end
 
   menu = UiUtil.fullscreenMenu{
