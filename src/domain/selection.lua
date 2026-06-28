@@ -14,6 +14,7 @@ function Selection.unreadIds(books)
 end
 
 function Selection.nextNUnread(books, n)
+  -- Semantics: next N unread *after furthest-read chapter*. "Select unread" covers the select-all case; do not change to "first N unread".
   local sorted = {}
   for _, b in ipairs(books) do sorted[#sorted + 1] = b end
   table.sort(sorted, bySort)
@@ -28,6 +29,20 @@ function Selection.nextNUnread(books, n)
       ids[#ids + 1] = b.id
     end
   end
+  return ids
+end
+
+function Selection.chosen(books, has)
+  local out = {}
+  for _, b in ipairs(books) do
+    if has(b.id) then out[#out + 1] = b end
+  end
+  return out
+end
+
+function Selection.allIds(books)
+  local ids = {}
+  for _, b in ipairs(books) do ids[#ids + 1] = b.id end
   return ids
 end
 

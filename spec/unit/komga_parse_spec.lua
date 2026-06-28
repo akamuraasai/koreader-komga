@@ -46,11 +46,11 @@ describe("komga_parse URL builders", function()
 end)
 
 describe("komga_parse.parseSeriesPage", function()
-  it("maps content to items", function()
-    local out = P.parseSeriesPage{ totalElements = 1, content = {
+  it("maps content to items and surfaces totalPages", function()
+    local out = P.parseSeriesPage{ totalPages = 1, totalElements = 1, content = {
       { id = "S1", name = "X", metadata = { title = "Battle Royale" }, booksCount = 122, booksUnreadCount = 5 },
     }}
-    assert.equals(1, out.total)
+    assert.equals(1, out.totalPages)
     assert.equals("S1", out.items[1].id)
     assert.equals("Battle Royale", out.items[1].title)
     assert.equals(122, out.items[1].booksCount)
@@ -86,12 +86,11 @@ describe("komga_parse.parseBooksPage", function()
     assert.equals(1, out.items[1].sort)
   end)
 
-  it("captures seriesId and seriesTitle for mixed-series lists", function()
+  it("captures seriesTitle for mixed-series lists", function()
     local out = P.parseBooksPage{ totalElements = 1, content = {
       { id = "b1", seriesId = "S9", seriesTitle = "One Piece",
         metadata = { number = "1045", numberSort = 1045 }, readProgress = nil },
     }}
-    assert.equals("S9", out.items[1].seriesId)
     assert.equals("One Piece", out.items[1].seriesTitle)
   end)
 
@@ -100,6 +99,15 @@ describe("komga_parse.parseBooksPage", function()
       { id = "b1", metadata = { number = "1", numberSort = 1 } },
     }}
     assert.is_nil(out.items[1].seriesTitle)
+  end)
+
+  it("treats a non-table metadata (rapidjson.null) as empty without indexing it", function()
+    local NULL = coroutine.create(function() end)   -- non-nil, non-table, errors if indexed
+    local out = P.parseBooksPage{ content = {
+      { id = "b1", metadata = NULL, readProgress = nil },
+    }}
+    assert.equals("?", out.items[1].number)
+    assert.equals(0, out.items[1].sort)
   end)
 end)
 
@@ -121,11 +129,11 @@ end)
 
 describe("komga_parse.parseCollectionsPage", function()
   it("maps collections with their series counts", function()
-    local out = P.parseCollectionsPage{ totalElements = 2, content = {
+    local out = P.parseCollectionsPage{ totalPages = 1, totalElements = 2, content = {
       { id = "C1", name = "Favorites", seriesIds = { "a", "b", "c" } },
       { id = "C2", name = "To Read", seriesIds = {} },
     }}
-    assert.equals(2, out.total)
+    assert.equals(1, out.totalPages)
     assert.equals("C1", out.items[1].id)
     assert.equals("Favorites", out.items[1].name)
     assert.equals(3, out.items[1].seriesCount)
@@ -134,5 +142,21 @@ describe("komga_parse.parseCollectionsPage", function()
   it("tolerates a missing seriesIds array", function()
     local out = P.parseCollectionsPage{ content = { { id = "C3", name = "X" } } }
     assert.equals(0, out.items[1].seriesCount)
+  end)
+end)
+
+describe("komga_parse.normalizeBase", function()
+  it("trims whitespace and trailing slashes", function()
+    assert.equals("https://k.example.com", P.normalizeBase("  https://k.example.com/  "))
+    assert.equals("https://k.example.com", P.normalizeBase("https://k.example.com///"))
+  end)
+  it("adds https:// when the scheme is missing", function()
+    assert.equals("https://k.example.com", P.normalizeBase("k.example.com"))
+  end)
+  it("leaves an explicit http scheme intact", function()
+    assert.equals("http://192.168.1.5:25600", P.normalizeBase("http://192.168.1.5:25600/"))
+  end)
+  it("returns empty string unchanged", function()
+    assert.equals("", P.normalizeBase(""))
   end)
 end)
