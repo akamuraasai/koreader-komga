@@ -5,6 +5,8 @@ Versioning: **CalVer** (`YYYY.MM.DD`).
 
 ## [Unreleased]
 
+## [2026.08.31] - 2026-08-31
+
 ### Added
 - Custom download folder, filename template, and per-series subfolder toggle, under
   **Komga → Settings** (#3). Templates combine `{series}`, `{title}`, and `{number}`
