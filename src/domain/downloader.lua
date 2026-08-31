@@ -38,6 +38,7 @@ function Downloader.run(api, dest_root, books, allBooks)
     for _, item in ipairs(plan) do
       if wanted[item.book.id] then todo[#todo + 1] = item end
     end
+    local cancelled = false
     for i, item in ipairs(todo) do
       local b, dest, dir = item.book, item.dest, item.dir
       local go = Trapper:info(T(_("Downloading %1/%2: #%3"), i, #todo, b.number))
@@ -50,7 +51,14 @@ function Downloader.run(api, dest_root, books, allBooks)
       elseif lfs.attributes(dest, "mode") == "file" then
         DownloadResult.skip(r)
       else
-        if api:downloadBook(b.id, dest) then DownloadResult.ok(r) else DownloadResult.fail(r) end
+        local function onRetry(next_attempt, attempts)
+          local keep_going = Trapper:info(T(_("Downloading %1/%2: #%3 (attempt %4 of %5)"),
+            i, #todo, b.number, next_attempt, attempts))
+          if not keep_going then cancelled = true end
+          return keep_going
+        end
+        if api:downloadBook(b.id, dest, onRetry) then DownloadResult.ok(r) else DownloadResult.fail(r) end
+        if cancelled then DownloadResult.stop(r) break end
       end
     end
 

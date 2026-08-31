@@ -3,6 +3,7 @@
 
 local KomgaParse = require("api/komga_parse")
 local Paging = require("domain/paging")
+local Retry = require("domain/retry")
 
 local KomgaApi = {}
 KomgaApi.__index = KomgaApi
@@ -59,12 +60,27 @@ function KomgaApi:_download(url, dest_path)
   return code
 end
 
+-- Real backoff sleep (overridden in tests).
+function KomgaApi._sleep(_self, seconds)
+  require("socket").sleep(seconds)
+end
+
+-- 200 + nil body is retried too: a connection-close proxy can truncate a "complete" response.
+local function getJsonRetrying(self, url)
+  return Retry.run(function() return self:_getJson(url) end, {
+    should_retry = function(code, body)
+      return Retry.transient(code) or (code == 200 and body == nil)
+    end,
+    sleep = function(s) self:_sleep(s) end,
+  })
+end
+
 -- Page through any list endpoint until exhausted (or MAX_PAGES). buildUrl(page, size)
 -- returns the URL for a page; parse(body) returns { items = {...} }.
 local function fetchAllPages(self, buildUrl, parse)
   local items, page = {}, 0
   while page < MAX_PAGES do
-    local code, body = self:_getJson(buildUrl(page, PAGE_SIZE))
+    local code, body = getJsonRetrying(self, buildUrl(page, PAGE_SIZE))
     if code ~= 200 or not body then return nil, "request failed (" .. tostring(code) .. ")" end
     local parsed = parse(body)
     for _, it in ipairs(parsed.items) do items[#items + 1] = it end
@@ -76,7 +92,7 @@ end
 
 -- Fetch a single endpoint and parse it. `label` ("books"/"series") tags the error.
 local function fetchOne(self, url, parse, label)
-  local code, body = self:_getJson(url)
+  local code, body = getJsonRetrying(self, url)
   if code ~= 200 or not body then return nil, label .. " request failed (" .. tostring(code) .. ")" end
   return parse(body)
 end
@@ -137,13 +153,24 @@ function KomgaApi:seriesNew()
     KomgaParse.parseSeriesPage, "series")
 end
 
-function KomgaApi:downloadBook(bookId, dest_path)
-  local code = self:_download(KomgaParse.buildFileUrl(self.base_url, bookId), dest_path)
+-- Optional on_retry returning false aborts the remaining attempts.
+function KomgaApi:downloadBook(bookId, dest_path, on_retry)
+  local url = KomgaParse.buildFileUrl(self.base_url, bookId)
+  local code = Retry.run(function()
+    local c = self:_download(url, dest_path)
+    if c ~= 200 and c ~= -1 then
+      os.remove(dest_path) -- no resume: drop partials
+    end
+    return c
+  end, {
+    should_retry = Retry.transient,
+    sleep = function(s) self:_sleep(s) end,
+    on_retry = on_retry,
+  })
   if code == -1 then
     return false, "could not open destination file: " .. dest_path
   end
   if code ~= 200 then
-    os.remove(dest_path) -- no resume: drop partials
     return false, "download failed (" .. tostring(code) .. ")"
   end
   return true
