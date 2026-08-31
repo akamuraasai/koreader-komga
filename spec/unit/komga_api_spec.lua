@@ -33,6 +33,7 @@ end)
 describe("KomgaApi.downloadBook", function()
   it("reports ok on 200 and failure (with cleanup) otherwise", function()
     local api = KomgaApi.new{ base_url = "https://k", api_key = "KEY" }
+    api._sleep = function() end
     api._download = function(_, _, _) return 200, {} end
     assert.is_true((api:downloadBook("b1", "/tmp/x.cbz")))
     api._download = function(_, _, _) return 500, nil end
@@ -45,6 +46,7 @@ end)
 describe("KomgaApi.downloadBook cleanup", function()
   it("removes the partial file on a non-200 download", function()
     local api = KomgaApi.new{ base_url = "https://k", api_key = "KEY" }
+    api._sleep = function() end
     api._download = function(_, _, _) return 500, nil end
     local removed
     local real_remove = os.remove
@@ -71,6 +73,7 @@ end)
 describe("KomgaApi.listBooks error path", function()
   it("returns nil + err on non-200", function()
     local api = KomgaApi.new{ base_url = "https://k", api_key = "KEY" }
+    api._sleep = function() end
     api._getJson = function() return 500, nil end
     local res, err = api:listBooks("S1")
     assert.is_nil(res)
@@ -97,6 +100,7 @@ describe("KomgaApi.searchSeriesAll pagination", function()
   end)
   it("returns nil + err if a page request fails", function()
     local api = KomgaApi.new{ base_url = "https://k", api_key = "KEY" }
+    api._sleep = function() end
     api._getJson = function() return 500, nil end
     local res, err = api:searchSeriesAll("")
     assert.is_nil(res)
@@ -171,6 +175,7 @@ describe("KomgaApi flat-list endpoints", function()
 
   it("returns nil + err when a flat-list page fails", function()
     local api = KomgaApi.new{ base_url = "https://k", api_key = "KEY" }
+    api._sleep = function() end
     api._getJson = function() return 500, nil end
     local res, err = api:booksInProgress()
     assert.is_nil(res)
@@ -234,6 +239,87 @@ describe("KomgaApi._getJson decode failure", function()
     assert(ok, code)
     assert.equals(200, code)
     assert.is_nil(body)
+  end)
+end)
+
+describe("KomgaApi retry on flaky connections", function()
+  local function flaky_api()
+    local api = KomgaApi.new{ base_url = "https://k", api_key = "KEY" }
+    api.slept = {}
+    api._sleep = function(self, s) self.slept[#self.slept + 1] = s end
+    return api
+  end
+
+  it("retries a transient list failure and succeeds", function()
+    local api = flaky_api()
+    local n = 0
+    api._getJson = function()
+      n = n + 1
+      if n < 3 then return "timeout", nil end
+      return 200, { totalPages = 1, content = {
+        { id = "b1", metadata = { number = "1", numberSort = 1 } } } }
+    end
+    local res = assert(api:listBooks("S1"))
+    assert.equals(3, n)
+    assert.same({ 1, 2 }, api.slept)
+    assert.equals("b1", res.items[1].id)
+  end)
+
+  it("does not retry a definitive client error", function()
+    local api = flaky_api()
+    local n = 0
+    api._getJson = function() n = n + 1; return 404, nil end
+    local res, err = api:listBooks("S1")
+    assert.is_nil(res)
+    assert.truthy(err)
+    assert.equals(1, n)
+    assert.equals(0, #api.slept)
+  end)
+
+  it("retries a 200 whose body did not decode (truncated by a flaky proxy)", function()
+    local api = flaky_api()
+    local n = 0
+    api._getJson = function()
+      n = n + 1
+      if n == 1 then return 200, nil end  -- decode failure
+      return 200, { totalPages = 1, content = {
+        { id = "b1", metadata = { number = "1", numberSort = 1 } } } }
+    end
+    local res = assert(api:listBooks("S1"))
+    assert.equals(2, n)
+    assert.equals("b1", res.items[1].id)
+  end)
+
+  it("downloadBook retries a dropped transfer, clearing the partial each time", function()
+    local api = flaky_api()
+    local n = 0
+    api._download = function()
+      n = n + 1
+      if n < 3 then return "timeout" end
+      return 200
+    end
+    local removed = {}
+    local real_remove = os.remove
+    os.remove = function(p) removed[#removed + 1] = p; return true end
+    local ok = api:downloadBook("b1", "/tmp/x.cbz")
+    os.remove = real_remove
+    assert.is_true(ok)
+    assert.equals(3, n)
+    assert.same({ "/tmp/x.cbz", "/tmp/x.cbz" }, removed)  -- one per failed attempt
+    assert.same({ 1, 2 }, api.slept)
+  end)
+
+  it("downloadBook stops retrying when on_retry says no", function()
+    local api = flaky_api()
+    local n = 0
+    api._download = function() n = n + 1; return "timeout" end
+    local real_remove = os.remove
+    os.remove = function() return true end
+    local ok, err = api:downloadBook("b1", "/tmp/x.cbz", function() return false end)
+    os.remove = real_remove
+    assert.is_false(ok)
+    assert.truthy(err:find("timeout"))
+    assert.equals(1, n)
   end)
 end)
 

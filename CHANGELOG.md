@@ -5,6 +5,13 @@ Versioning: **CalVer** (`YYYY.MM.DD`).
 
 ## [Unreleased]
 
+### Fixed
+- Downloads and browsing now survive unstable connections (e.g. Kindle +
+  Tailscale behind an HTTP proxy): transient failures (transport errors, 5xx,
+  truncated responses) are retried up to 4 times with exponential backoff.
+  Each retry shows an "attempt X of Y" notice that can be tapped to cancel,
+  and partial files are removed before every retry.
+
 ## [2026.06.22] - 2026-06-22
 
 First public release.
