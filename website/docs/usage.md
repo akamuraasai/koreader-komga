@@ -52,18 +52,25 @@ Each row shows a checkbox, the series title, the chapter number, and a status ma
 ## Where files go
 
 ```
-<download root>/Komga/<Series name>/<NNNN>.cbz
+<download root>/<Series name>/<name>.cbz
 ```
 
-- The **download root** resolves to the first available of: a custom `download_dir` setting,
-  your file-manager **home** directory, the device home (e.g. `/mnt/onboard` on Kobo), or the
-  KOReader data dir — preferring a **public, user-visible** location.
-- Series folder names are sanitized for FAT32 compatibility (illegal characters replaced with
-  spaces, trailing dots removed).
-- Chapters are named by zero-padded sort order (e.g. `0001.cbz`, `0010.cbz`, `0010.5.cbz`).
-  If two chapters would map to the same name (duplicate/missing sort), later ones get a short
+- The **download root** is picked in **Komga → Settings → Download folder**. When unset, it
+  resolves to the first available of: your file-manager **home** directory, the device home
+  (e.g. `/mnt/onboard` on Kobo), or the KOReader data dir — preferring a **public,
+  user-visible** location — with `/Komga` appended.
+- File names follow **Komga → Settings → Filename template**. Placeholders: `{series}`,
+  `{title}` (chapter title, may be empty), `{number}` (zero-padded sort, e.g. `0001`,
+  `0010.5`). Default: `{number}`; `{number}` is required.
+
+    ![The filename template dialog](assets/screenshots/template.png){ width="320" }
+- **Komga → Settings → Per-series subfolder** controls the `<Series name>/` level. Turning it
+  off saves everything flat under the root and requires `{series}` in the template.
+- Names are sanitized for FAT32 compatibility (illegal characters replaced with spaces,
+  trailing dots removed). If two chapters would map to the same name, later ones get a short
   id suffix (e.g. `0001_<id>.cbz`).
-- Configurable via the `download_dir` setting in the KOReader settings file.
+- Changing the template or the subfolder toggle does not rename existing files: chapters
+  downloaded under old names are no longer detected as downloaded and will download again.
 
 ## Read-progress sync
 

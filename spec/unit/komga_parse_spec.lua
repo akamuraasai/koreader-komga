@@ -73,6 +73,15 @@ describe("komga_parse.parseBooksPage", function()
     assert.equals(2.5, out.items[3].sort)
   end)
 
+  it("exposes the book's own title (nil when absent)", function()
+    local out = P.parseBooksPage{ totalElements = 2, content = {
+      { id = "b1", metadata = { number = "1", numberSort = 1, title = "Romance Dawn" } },
+      { id = "b2", metadata = { number = "2", numberSort = 2 } },
+    }}
+    assert.equals("Romance Dawn", out.items[1].title)
+    assert.is_nil(out.items[2].title)
+  end)
+
   -- rapidjson decodes JSON null to a non-nil sentinel (userdata), NOT Lua nil.
   -- A thread is a faithful stand-in: non-nil, non-table, and errors if indexed.
   it("treats a non-table readProgress (rapidjson.null) as unread, without indexing it", function()

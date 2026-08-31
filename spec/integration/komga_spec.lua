@@ -69,7 +69,11 @@ local function fake_settings(dir)
     isConfigured = function(_self)
       return (store.base_url or "") ~= "" and (store.api_key or "") ~= ""
     end,
-    downloadDir = function() return dir end,
+    downloadDir = function(_self) return store.download_dir or dir end,
+    defaultDownloadDir = function() return dir end,
+    naming = function(_self)
+      return { template = store.filename_template or "{number}", flat = store.series_subfolder == false }
+    end,
   }
 end
 
@@ -453,6 +457,22 @@ describe("Komga plugin — UI integration (real KOReader frontend)", function()
       assert.is_truthy(menu.item_table[2].text:find("⤓", 1, true))   -- second twin: downloaded
       os.remove(plan[2].dest)
     end)
+
+    it("marks downloaded chapters through a custom naming template", function()
+      local dir = tmpdir()
+      local books = {
+        { id = "n1", seriesTitle = "Tpl", number = "1", sort = 1, completed = false, inProgress = false },
+        { id = "n2", seriesTitle = "Tpl", number = "2", sort = 2, completed = false, inProgress = false },
+      }
+      util.makePath(dir .. "/Tpl")
+      local f = io.open(dir .. "/Tpl/Tpl_0001.cbz", "w"); f:write("x"); f:close()
+      ChapterPicker.show({ title = "Tpl", books = books, download_dir = dir,
+        naming = { template = "{series}_{number}" } }, function() end)
+      local menu = last_menu()
+      assert.is_truthy(menu.item_table[1].text:find("⤓", 1, true))
+      assert.is_nil(menu.item_table[2].text:find("⤓", 1, true))
+      os.remove(dir .. "/Tpl/Tpl_0001.cbz")
+    end)
   end)
 
   describe("downloader", function()
@@ -560,6 +580,19 @@ describe("Komga plugin — UI integration (real KOReader frontend)", function()
       assert.equals("file", lfs.attributes(plan[2].dest, "mode"),
         "second twin file missing: " .. plan[2].dest)
     end)
+
+    it("names files by the naming template, flat under the root", function()
+      local lfs = require("libs/libkoreader-lfs")
+      local dir = tmpdir()
+      local mixed = {
+        { id = "a", seriesTitle = "One Piece", number = "1", sort = 1, title = "Romance Dawn" },
+        { id = "b", seriesTitle = "Naruto",    number = "5", sort = 5 },
+      }
+      Downloader.run(fake_api({ downloadBook = writer() }), dir, mixed, nil,
+        { template = "{series}-{title}-{number}", flat = true })
+      assert.equals("file", lfs.attributes(dir .. "/One Piece-Romance Dawn-0001.cbz", "mode"))
+      assert.equals("file", lfs.attributes(dir .. "/Naruto-0005.cbz", "mode"))
+    end)
   end)
 
   describe("settings (main.lua)", function()
@@ -586,6 +619,79 @@ describe("Komga plugin — UI integration (real KOReader frontend)", function()
       assert.equals("https://komga.example.com", settings._store.base_url)
       assert.equals("KEY123", settings._store.api_key)
       assert.equals("Saved", last_info().text)
+    end)
+
+    it("saves a valid filename template from the dialog (trimmed)", function()
+      local settings = fake_settings(nil)
+      Komga.editFilenameTemplate({ settings = settings })
+      local dlg = last_dialog()
+      dlg.getInputText = function() return " {series}_{number} " end
+      assert.is_true(tap_button(dlg, "Save"))
+      assert.equals("{series}_{number}", settings._store.filename_template)
+      assert.equals("Saved", last_info().text)
+    end)
+
+    it("rejects a template without {number} and keeps the stored value", function()
+      local settings = fake_settings(nil)
+      Komga.editFilenameTemplate({ settings = settings })
+      local dlg = last_dialog()
+      dlg.getInputText = function() return "{series}" end
+      assert.is_true(tap_button(dlg, "Save"))
+      assert.is_nil(settings._store.filename_template)
+      assert.is_truthy(last_info().text:find("{number}", 1, true))
+    end)
+
+    it("rejects an unknown placeholder, naming it in the message", function()
+      local settings = fake_settings(nil)
+      Komga.editFilenameTemplate({ settings = settings })
+      local dlg = last_dialog()
+      dlg.getInputText = function() return "{serie}_{number}" end
+      assert.is_true(tap_button(dlg, "Save"))
+      assert.is_nil(settings._store.filename_template)
+      assert.is_truthy(last_info().text:find("{serie}", 1, true))
+    end)
+
+    it("refuses flat mode while the template lacks {series}", function()
+      local settings = fake_settings(nil)
+      Komga.toggleSeriesSubfolder({ settings = settings })
+      assert.is_nil(settings._store.series_subfolder)
+      assert.is_truthy(last_info().text:find("{series}", 1, true))
+    end)
+
+    it("toggles flat mode once the template names the series, and back on", function()
+      local settings = fake_settings(nil)
+      settings._store.filename_template = "{series}_{number}"
+      Komga.toggleSeriesSubfolder({ settings = settings })
+      assert.is_false(settings._store.series_subfolder)
+      Komga.toggleSeriesSubfolder({ settings = settings })
+      assert.is_true(settings._store.series_subfolder)
+    end)
+
+    it("stores the folder picked in the download-folder chooser", function()
+      -- Headless there is no FileManager/Reader instance for PathChooser's self.ui.
+      local FileManager = require("apps/filemanager/filemanager")
+      local prev = FileManager.instance
+      FileManager.instance = { folder_shortcuts = { getShortcutFullName = function() end } }
+      local settings = fake_settings(tmpdir())
+      local self_ = { settings = settings }
+      self_.pickDownloadDir = Komga.pickDownloadDir
+      Komga.chooseDownloadDir(self_)
+      local ok, err = pcall(tap_button, last_dialog(), "Choose folder")
+      FileManager.instance = prev
+      assert(ok, err)
+      local chooser = shown[#shown]
+      assert.is_truthy(chooser.onConfirm)
+      chooser.onConfirm("/mnt/sd/Manga")
+      assert.equals("/mnt/sd/Manga", settings._store.download_dir)
+    end)
+
+    it("resets the download folder to the home default", function()
+      local settings = fake_settings(tmpdir())
+      settings._store.download_dir = "/mnt/sd/Manga"
+      Komga.chooseDownloadDir({ settings = settings })
+      assert.is_true(tap_button(last_dialog(), "Use default"))
+      assert.is_nil(settings._store.download_dir)
+      assert.is_truthy(last_info().text:find("Downloads will be saved to", 1, true))
     end)
   end)
 end)

@@ -47,4 +47,21 @@ describe("DownloadPlan.resolve", function()
     assert.equals("/root/X/0000.cbz", plan[1].dest)
     assert.equals("/root/Y/0000.cbz", plan[2].dest)
   end)
+
+  it("applies the naming template, feeding each book's own title", function()
+    local plan = Plan.resolve({
+      { id = "a", seriesTitle = "X", sort = 1, title = "Alpha" },
+      { id = "b", seriesTitle = "X", sort = 2 },
+    }, "/root", { template = "{series}-{title}-{number}" })
+    assert.equals("/root/X/X-Alpha-0001.cbz", plan[1].dest)
+    assert.equals("/root/X/X-0002.cbz", plan[2].dest)
+  end)
+
+  it("routes flat naming to the root dir", function()
+    local plan = Plan.resolve({
+      { id = "a", seriesTitle = "X", sort = 1 },
+    }, "/root", { template = "{series}_{number}", flat = true })
+    assert.equals("/root/X_0001.cbz", plan[1].dest)
+    assert.equals("/root", plan[1].dir)
+  end)
 end)

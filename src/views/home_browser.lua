@@ -11,13 +11,13 @@ local C_ = _.pgettext
 
 local HomeBrowser = {}
 
--- ctx = { download_dir, on_download }
+-- ctx = { download_dir, naming, on_download }
 function HomeBrowser.show(api, ctx)
   local menu
 
   local function openChapters(title, mixed, fetch)
     ChapterPicker.show({
-      title = title, mixed = mixed, download_dir = ctx.download_dir, fetch = fetch,
+      title = title, mixed = mixed, download_dir = ctx.download_dir, naming = ctx.naming, fetch = fetch,
     }, ctx.on_download)
   end
 

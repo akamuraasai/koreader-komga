@@ -21,12 +21,20 @@ end
 function Settings:isConfigured()
   return (self:get("base_url") or "") ~= "" and (self:get("api_key") or "") ~= ""
 end
-function Settings:downloadDir()
+function Settings:naming()
+  return {
+    template = self:get("filename_template") or "{number}",
+    flat = self:get("series_subfolder") == false,
+  }
+end
+local function resolveDir(custom)
   return DownloadDir.resolve(
-    self:get("download_dir"),
+    custom,
     G_reader_settings and G_reader_settings:readSetting("home_dir"),
     require("device").home_dir,
     DataStorage:getFullDataDir())
 end
+function Settings:downloadDir() return resolveDir(self:get("download_dir")) end
+function Settings.defaultDownloadDir(_self) return resolveDir(nil) end
 
 return Settings

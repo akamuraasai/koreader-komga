@@ -26,6 +26,7 @@ local ChapterPicker = {}
 --   fetch        = function() return { items = {...} } | nil, err end,
 --   mixed        = boolean,          -- true: many series; hides the per-series "Next N"
 --   download_dir = string | nil,     -- enables the "already downloaded" marker
+--   naming       = table | nil,      -- { template, flat } for DownloadPlan
 -- }
 function ChapterPicker.show(opts, on_download)
   local books = opts.books or {}
@@ -35,7 +36,7 @@ function ChapterPicker.show(opts, on_download)
   local function refreshDownloaded()
     downloaded = {}
     if opts.download_dir then
-      for _, item in ipairs(DownloadPlan.resolve(books, opts.download_dir)) do
+      for _, item in ipairs(DownloadPlan.resolve(books, opts.download_dir, opts.naming)) do
         if lfs.attributes(item.dest, "mode") == "file" then downloaded[item.book.id] = true end
       end
     end
@@ -137,6 +138,7 @@ function ChapterPicker.showForSeries(api, series, ctx)
     title = series.title,
     mixed = false,
     download_dir = ctx.download_dir,
+    naming = ctx.naming,
     fetch = function()
       local res, err = api:listBooks(series.id)
       if not res then return nil, err end

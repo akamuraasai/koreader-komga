@@ -12,9 +12,11 @@ local Screen = require("device").screen
 local BB = require("ffi/blitbuffer")
 local UiUtil = require("views/ui_util")
 local MultiInputDialog = require("ui/widget/multiinputdialog")
+local InputDialog = require("ui/widget/inputdialog")
 
 require("ui/widget/menu").is_enable_shortcut = false  -- touch-style rows, no Q/W/E hints
 MultiInputDialog.onShowKeyboard = function() end
+InputDialog.onShowKeyboard = function() end
 
 local OUT = os.getenv("SHOTS_OUT")
   or "/Users/jcruz/projects/koreader-komga/website/docs/assets/screenshots"
@@ -86,5 +88,13 @@ describe("komga screenshots", function()
       end,
     } })
     shoot("settings")
+  end)
+
+  it("captures the filename template dialog", function()
+    reset()
+    require("main").editFilenameTemplate({ settings = {
+      naming = function() return { template = "{series}-{title}-{number}", flat = false } end,
+    } })
+    shoot("template")
   end)
 end)

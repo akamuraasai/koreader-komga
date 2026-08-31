@@ -10,8 +10,9 @@ local function keyOf(b) return tostring(b.seriesTitle) .. "\0" .. tostring(b.sor
 -- Map each book to a UNIQUE destination + its series dir. Any (seriesTitle, sort) key
 -- shared by more than one book in `books` makes ALL its books id-suffixed, so a book's
 -- on-disk name depends only on its identity within a fixed set -- never on iteration
--- order. Returns { { book, dest, dir }, ... } in input order. Pure.
-function DownloadPlan.resolve(books, root)
+-- order. `naming` = optional { template, flat } (see DownloadPath.forBook).
+-- Returns { { book, dest, dir }, ... } in input order. Pure.
+function DownloadPlan.resolve(books, root, naming)
   local counts = {}
   for _, b in ipairs(books) do
     local k = keyOf(b); counts[k] = (counts[k] or 0) + 1
@@ -19,10 +20,11 @@ function DownloadPlan.resolve(books, root)
   local plan = {}
   for _, b in ipairs(books) do
     local suffix = counts[keyOf(b)] > 1 and b.id or nil
+    local n = naming and { template = naming.template, flat = naming.flat, title = b.title } or nil
     plan[#plan + 1] = {
       book = b,
-      dest = DownloadPath.forBook(root, b.seriesTitle, b.sort, suffix),
-      dir = DownloadPath.dirFor(root, b.seriesTitle),
+      dest = DownloadPath.forBook(root, b.seriesTitle, b.sort, suffix, n),
+      dir = DownloadPath.dirFor(root, b.seriesTitle, n),
     }
   end
   return plan

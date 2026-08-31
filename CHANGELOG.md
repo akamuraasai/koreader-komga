@@ -5,6 +5,11 @@ Versioning: **CalVer** (`YYYY.MM.DD`).
 
 ## [Unreleased]
 
+### Added
+- Custom download folder, filename template, and per-series subfolder toggle, under
+  **Komga → Settings** (#3). Templates combine `{series}`, `{title}`, and `{number}`
+  (e.g. `{series}-{title}-{number}`); the default keeps the current `0001.cbz` names.
+
 ### Fixed
 - Downloads and browsing now survive unstable connections (e.g. Kindle +
   Tailscale behind an HTTP proxy): transient failures (transport errors, 5xx,
