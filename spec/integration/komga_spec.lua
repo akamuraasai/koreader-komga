@@ -669,15 +669,17 @@ describe("Komga plugin — UI integration (real KOReader frontend)", function()
 
     it("stores the folder picked in the download-folder chooser", function()
       -- Headless there is no FileManager/Reader instance for PathChooser's self.ui.
-      local FileManager = require("apps/filemanager/filemanager")
-      local prev = FileManager.instance
-      FileManager.instance = { folder_shortcuts = { getShortcutFullName = function() end } }
+      -- Stub readerui via package.loaded: requiring the real FileManager drags in
+      -- socketutil, whose user-agent parse crashes on CI's tagless koreader checkout.
+      local prev = package.loaded["apps/reader/readerui"]
+      package.loaded["apps/reader/readerui"] =
+        { instance = { folder_shortcuts = { getShortcutFullName = function() end } } }
       local settings = fake_settings(tmpdir())
       local self_ = { settings = settings }
       self_.pickDownloadDir = Komga.pickDownloadDir
       Komga.chooseDownloadDir(self_)
       local ok, err = pcall(tap_button, last_dialog(), "Choose folder")
-      FileManager.instance = prev
+      package.loaded["apps/reader/readerui"] = prev
       assert(ok, err)
       local chooser = shown[#shown]
       assert.is_truthy(chooser.onConfirm)
