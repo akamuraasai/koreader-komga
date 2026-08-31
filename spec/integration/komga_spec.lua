@@ -74,6 +74,9 @@ local function fake_settings(dir)
     naming = function(_self)
       return { template = store.filename_template or "{number}", flat = store.series_subfolder == false }
     end,
+    downloadTimeouts = function(_self)
+      return { block = store.download_block_timeout, total = store.download_total_timeout }
+    end,
   }
 end
 
@@ -665,6 +668,59 @@ describe("Komga plugin — UI integration (real KOReader frontend)", function()
       assert.is_false(settings._store.series_subfolder)
       Komga.toggleSeriesSubfolder({ settings = settings })
       assert.is_true(settings._store.series_subfolder)
+    end)
+
+    it("lists Download timeouts in the Settings submenu", function()
+      local menu_items = {}
+      Komga.addToMainMenu({ settings = fake_settings(nil) }, menu_items)
+      local settings_menu
+      for _, item in ipairs(menu_items.komga.sub_item_table) do
+        if item.text == "Settings" then settings_menu = item.sub_item_table end
+      end
+      local found
+      for _, item in ipairs(settings_menu) do
+        if item.text == "Download timeouts" then found = item end
+      end
+      assert.is_truthy(found)
+    end)
+
+    it("saves download timeouts entered in the dialog", function()
+      local settings = fake_settings(nil)
+      Komga.editDownloadTimeouts({ settings = settings })
+      local dlg = last_dialog()
+      assert.is_truthy(dlg)
+      dlg.getFields = function() return { "30", "300" } end
+      assert.is_true(tap_button(dlg, "Save"))
+      assert.equals(30, settings._store.download_block_timeout)
+      assert.equals(300, settings._store.download_total_timeout)
+      assert.equals("Saved", last_info().text)
+    end)
+
+    it("clears download timeouts when the fields are emptied or not positive", function()
+      local settings = fake_settings(nil)
+      settings._store.download_block_timeout = 30
+      settings._store.download_total_timeout = 300
+      Komga.editDownloadTimeouts({ settings = settings })
+      local dlg = last_dialog()
+      dlg.getFields = function() return { "", "0" } end
+      assert.is_true(tap_button(dlg, "Save"))
+      assert.is_nil(settings._store.download_block_timeout)
+      assert.is_nil(settings._store.download_total_timeout)
+    end)
+
+    it("passes the configured download timeouts to the API", function()
+      local prev = package.loaded["views/home_browser"]
+      local captured
+      package.loaded["views/home_browser"] = { show = function(api, _ctx) captured = api end }
+      local settings = fake_settings(nil)
+      settings._store.download_block_timeout = 30
+      settings._store.download_total_timeout = 300
+      settings._store.base_url = "https://k"
+      settings._store.api_key = "KEY"
+      local ok, err = pcall(Komga.openHome, { settings = settings })
+      package.loaded["views/home_browser"] = prev
+      assert(ok, err)
+      assert.same({ block = 30, total = 300 }, captured.timeouts)
     end)
 
     it("stores the folder picked in the download-folder chooser", function()

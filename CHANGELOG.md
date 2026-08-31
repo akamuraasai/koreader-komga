@@ -5,6 +5,17 @@ Versioning: **CalVer** (`YYYY.MM.DD`).
 
 ## [Unreleased]
 
+### Fixed
+- Large chapters (150 MB+) no longer fail on slow connections: downloads had a hard
+  60-second total cap (KOReader's default), which killed every attempt (retries
+  included) before big files could finish. There is now no total time limit by
+  default; a stalled transfer (no data for 15 s) is still aborted and retried.
+
+### Added
+- **Komga → Settings → Download timeouts**: configure the stall timeout and an
+  optional total time limit per download. Leave both empty for the defaults
+  (15 s stall, no total limit).
+
 ## [2026.08.31] - 2026-08-31
 
 ### Added

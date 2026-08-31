@@ -90,6 +90,14 @@ describe("komga screenshots", function()
     shoot("settings")
   end)
 
+  it("captures the download timeouts dialog", function()
+    reset()
+    require("main").editDownloadTimeouts({ settings = {
+      get = function() end,
+    } })
+    shoot("timeouts")
+  end)
+
   it("captures the filename template dialog", function()
     reset()
     require("main").editFilenameTemplate({ settings = {

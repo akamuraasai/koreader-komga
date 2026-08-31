@@ -48,6 +48,22 @@ Each row shows a checkbox, the series title, the chapter number, and a status ma
   not mid-chapter).
 - Files that already exist are skipped.
 - A summary shows downloaded / skipped / failed counts and the destination folder.
+- Transient failures (connection drops, server errors) are retried up to 4 times with
+  exponential backoff; each retry notice can be tapped to cancel.
+
+### Download timeouts
+
+By default a download is aborted (and retried) only when it **stalls** (no data received
+for 15 seconds), with **no limit on the total duration**, so large files can take as long
+as they need on a slow connection.
+
+**Komga → Settings → Download timeouts** lets you change both values:
+
+- **Stall timeout**: seconds without receiving any data before the attempt is aborted.
+- **Total timeout**: a hard cap on the whole download, if you want one. Leave empty for
+  no cap (recommended; a low value makes big chapters fail on slow links).
+
+    ![The download timeouts dialog](assets/screenshots/timeouts.png){ width="320" }
 
 ## Where files go
 
