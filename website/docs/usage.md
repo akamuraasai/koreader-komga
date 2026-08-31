@@ -62,6 +62,8 @@ Each row shows a checkbox, the series title, the chapter number, and a status ma
 - File names follow **Komga → Settings → Filename template**. Placeholders: `{series}`,
   `{title}` (chapter title, may be empty), `{number}` (zero-padded sort, e.g. `0001`,
   `0010.5`). Default: `{number}`; `{number}` is required.
+
+    ![The filename template dialog](assets/screenshots/template.png){ width="320" }
 - **Komga → Settings → Per-series subfolder** controls the `<Series name>/` level. Turning it
   off saves everything flat under the root and requires `{series}` in the template.
 - Names are sanitized for FAT32 compatibility (illegal characters replaced with spaces,

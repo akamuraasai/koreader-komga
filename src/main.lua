@@ -37,11 +37,32 @@ function Komga:addToMainMenu(menu_items)
 end
 
 function Komga:chooseDownloadDir()
+  local ButtonDialog = require("ui/widget/buttondialog")
+  local dialog
+  dialog = ButtonDialog:new{
+    title = T(_("Download folder:\n%1"), self.settings:downloadDir()),
+    buttons = {
+      {{ text = _("Choose folder"), callback = function()
+          UIManager:close(dialog)
+          self:pickDownloadDir()
+        end }},
+      {{ text = _("Use default"), callback = function()
+          UIManager:close(dialog)
+          self.settings:set("download_dir", nil)
+          UIManager:show(InfoMessage:new{ text = T(_("Downloads will be saved to:\n%1"), self.settings:defaultDownloadDir()) })
+        end }},
+      {{ text = _("Cancel"), callback = function() UIManager:close(dialog) end }},
+    },
+  }
+  UIManager:show(dialog)
+end
+
+function Komga:pickDownloadDir()
   local PathChooser = require("ui/widget/pathchooser")
   UIManager:show(PathChooser:new{
     select_directory = true,
     select_file = false,
-    path = self.settings:downloadDir(),
+    path = self.settings:downloadDir(),  -- FileChooser falls back to home when missing
     onConfirm = function(path)
       self.settings:set("download_dir", path)
       UIManager:show(InfoMessage:new{ text = T(_("Downloads will be saved to:\n%1"), path) })

@@ -2,7 +2,8 @@
 
 Browse a [Komga](https://komga.org) manga server from your [KOReader](https://koreader.rocks)
 e-reader, multi-select chapters, and bulk-download them into per-series folders. Reading
-progress syncs back to Komga through KOReader's own sync.
+progress syncs back to Komga through KOReader's own sync. Downloads retry over flaky
+connections, and the download folder and file naming are configurable from Settings.
 
 ![The Komga home hub](website/docs/assets/screenshots/home.png)
 

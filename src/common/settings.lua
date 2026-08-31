@@ -27,12 +27,14 @@ function Settings:naming()
     flat = self:get("series_subfolder") == false,
   }
 end
-function Settings:downloadDir()
+local function resolveDir(custom)
   return DownloadDir.resolve(
-    self:get("download_dir"),
+    custom,
     G_reader_settings and G_reader_settings:readSetting("home_dir"),
     require("device").home_dir,
     DataStorage:getFullDataDir())
 end
+function Settings:downloadDir() return resolveDir(self:get("download_dir")) end
+function Settings.defaultDownloadDir(_self) return resolveDir(nil) end
 
 return Settings
