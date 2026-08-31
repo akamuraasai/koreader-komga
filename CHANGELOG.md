@@ -5,6 +5,8 @@ Versioning: **CalVer** (`YYYY.MM.DD`).
 
 ## [Unreleased]
 
+## [2026.08.31.1] - 2026-08-31
+
 ### Fixed
 - Large chapters (150 MB+) no longer fail on slow connections: downloads had a hard
   60-second total cap (KOReader's default), which killed every attempt (retries
