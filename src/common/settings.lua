@@ -27,6 +27,16 @@ function Settings:naming()
     flat = self:get("series_subfolder") == false,
   }
 end
+local function positiveNumber(v)
+  if type(v) == "number" and v > 0 then return v end
+end
+-- Absent keys mean "use the API defaults" (stall = socketutil's, no total cap).
+function Settings:downloadTimeouts()
+  return {
+    block = positiveNumber(self:get("download_block_timeout")),
+    total = positiveNumber(self:get("download_total_timeout")),
+  }
+end
 local function resolveDir(custom)
   return DownloadDir.resolve(
     custom,

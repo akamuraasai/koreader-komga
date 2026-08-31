@@ -16,6 +16,7 @@ function KomgaApi.new(opts)
   return setmetatable({
     base_url = KomgaParse.normalizeBase(opts.base_url),
     api_key = opts.api_key,
+    timeouts = opts.timeouts or {},
   }, KomgaApi)
 end
 
@@ -46,7 +47,10 @@ function KomgaApi:_download(url, dest_path)
   local socketutil = require("socketutil")
   local fh = io.open(dest_path, "wb")
   if not fh then return -1 end
-  socketutil:set_timeout(socketutil.FILE_BLOCK_TIMEOUT, socketutil.FILE_TOTAL_TIMEOUT)
+  -- Total defaults to -1 (no cap): 150MB+ books on slow links outlive FILE_TOTAL_TIMEOUT; block timeout still aborts stalls.
+  socketutil:set_timeout(
+    self.timeouts.block or socketutil.FILE_BLOCK_TIMEOUT,
+    self.timeouts.total or -1)
   local code = socket.skip(1, http.request{
     url = url,
     headers = { ["X-API-Key"] = self.api_key },

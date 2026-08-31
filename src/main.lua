@@ -31,6 +31,7 @@ function Komga:addToMainMenu(menu_items)
         { text = _("Per-series subfolder"),
           checked_func = function() return self.settings:get("series_subfolder") ~= false end,
           callback = function() self:toggleSeriesSubfolder() end },
+        { text = _("Download timeouts"), keep_menu_open = true, callback = function() self:editDownloadTimeouts() end },
       } },
     },
   }
@@ -118,6 +119,38 @@ function Komga:toggleSeriesSubfolder()
   self.settings:set("series_subfolder", not flat)
 end
 
+function Komga:editDownloadTimeouts()
+  local function current(key)
+    local v = self.settings:get(key)
+    return v and tostring(v) or ""
+  end
+  local dialog
+  dialog = MultiInputDialog:new{
+    title = _("Download timeouts"),
+    fields = {
+      { description = _("Stall timeout (seconds)"), text = current("download_block_timeout"), input_type = "number" },
+      { description = _("Total timeout (seconds)"), text = current("download_total_timeout"), input_type = "number" },
+    },
+    description = _("A download is aborted when no data arrives for the stall timeout, or when it exceeds the total timeout.\nLeave empty for the defaults: 15 s stall, no total limit (recommended for large files)."),
+    buttons = {{
+      { text = _("Cancel"), id = "close", callback = function() UIManager:close(dialog) end },
+      { text = _("Save"), callback = function()
+          local f = dialog:getFields()
+          local function positive(v)
+            local n = tonumber(v)
+            if n and n > 0 then return math.floor(n) end
+          end
+          self.settings:set("download_block_timeout", positive(f[1]))
+          self.settings:set("download_total_timeout", positive(f[2]))
+          UIManager:close(dialog)
+          UIManager:show(InfoMessage:new{ text = _("Saved") })
+        end },
+    }},
+  }
+  UIManager:show(dialog)
+  dialog:onShowKeyboard()
+end
+
 function Komga:showConfig()
   local dialog
   dialog = MultiInputDialog:new{
@@ -158,7 +191,11 @@ end
 function Komga:openHome()
   local KomgaApi = require("api/komga_api")
   local HomeBrowser = require("views/home_browser")
-  local api = KomgaApi.new{ base_url = self.settings:get("base_url"), api_key = self.settings:get("api_key") }
+  local api = KomgaApi.new{
+    base_url = self.settings:get("base_url"),
+    api_key = self.settings:get("api_key"),
+    timeouts = self.settings:downloadTimeouts(),
+  }
   HomeBrowser.show(api, {
     download_dir = self.settings:downloadDir(),
     naming = self.settings:naming(),

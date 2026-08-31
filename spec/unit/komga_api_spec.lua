@@ -212,6 +212,45 @@ describe("KomgaApi._download resource handling", function()
   end)
 end)
 
+describe("KomgaApi._download timeouts", function()
+  local function download_with_stubs(api)
+    local seen
+    local saved = {
+      http = package.loaded["socket.http"],
+      sock = package.loaded["socket"],
+      sutil = package.loaded["socketutil"],
+    }
+    local saved_open = io.open
+    io.open = function() return { close = function() end } end
+    package.loaded["socket.http"] = { request = function() return 1, 200 end }
+    package.loaded["socket"] = { skip = function(_n, _a, b) return b end }
+    package.loaded["socketutil"] = {
+      FILE_BLOCK_TIMEOUT = 15, FILE_TOTAL_TIMEOUT = 60,
+      set_timeout = function(_self, block, total) seen = { block, total } end,
+      reset_timeout = function() end,
+      file_sink = function() return function() end end,
+    }
+    local ok, err = pcall(function() return api:_download("https://k/file", "/tmp/x.cbz") end)
+    io.open = saved_open
+    package.loaded["socket.http"] = saved.http
+    package.loaded["socket"] = saved.sock
+    package.loaded["socketutil"] = saved.sutil
+    assert(ok, err)
+    return seen
+  end
+
+  it("defaults to the stall timeout with NO total cap (large files on slow links)", function()
+    local api = KomgaApi.new{ base_url = "https://k", api_key = "KEY" }
+    assert.same({ 15, -1 }, download_with_stubs(api))
+  end)
+
+  it("uses configured timeouts when present", function()
+    local api = KomgaApi.new{ base_url = "https://k", api_key = "KEY",
+      timeouts = { block = 30, total = 300 } }
+    assert.same({ 30, 300 }, download_with_stubs(api))
+  end)
+end)
+
 describe("KomgaApi._getJson decode failure", function()
   it("returns (code, nil) when the body is 200 but not valid JSON", function()
     local saved = {
