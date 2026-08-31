@@ -24,13 +24,13 @@ end
 -- defaults to books when omitted (3-arg callers behave identically to before).
 -- Each chapter routes to its OWN series folder, so a mixed-series selection
 -- (Current Reading / Deck / Last Updated) downloads correctly.
-function Downloader.run(api, dest_root, books, allBooks)
+function Downloader.run(api, dest_root, books, allBooks, naming)
   Trapper:wrap(function()
     local r = DownloadResult.new()
     local ensured = {}
     -- Resolve destinations over the FULL visible set so collision suffixes are stable
     -- regardless of how many twins are selected in a single action.
-    local plan = DownloadPlan.resolve(allBooks or books, dest_root)
+    local plan = DownloadPlan.resolve(allBooks or books, dest_root, naming)
     -- Filter to only the entries the caller actually selected.
     local wanted = {}
     for _, b in ipairs(books) do wanted[b.id] = true end

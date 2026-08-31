@@ -21,6 +21,12 @@ end
 function Settings:isConfigured()
   return (self:get("base_url") or "") ~= "" and (self:get("api_key") or "") ~= ""
 end
+function Settings:naming()
+  return {
+    template = self:get("filename_template") or "{number}",
+    flat = self:get("series_subfolder") == false,
+  }
+end
 function Settings:downloadDir()
   return DownloadDir.resolve(
     self:get("download_dir"),

@@ -9,7 +9,7 @@ local _ = require("gettext")
 
 local CollectionsBrowser = {}
 
--- ctx = { download_dir, on_download }
+-- ctx = { download_dir, naming, on_download }
 function CollectionsBrowser.show(api, ctx)
   local menu
 

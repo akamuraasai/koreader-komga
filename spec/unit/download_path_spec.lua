@@ -33,4 +33,25 @@ describe("DownloadPath.dirFor", function()
     assert.equals("/root/One Piece", DownloadPath.dirFor("/root", "One Piece"))
     assert.equals("/root/So I'm a Spider, So What", DownloadPath.dirFor("/root", "So I'm a Spider, So What?"))
   end)
+  it("returns the root itself for flat naming", function()
+    assert.equals("/root", DownloadPath.dirFor("/root", "One Piece", { flat = true }))
+  end)
+end)
+
+describe("DownloadPath.forBook with a naming template", function()
+  it("renders the filename from the template", function()
+    assert.equals("/root/One Piece/One Piece_0001.cbz",
+      DownloadPath.forBook("/root", "One Piece", 1, nil, { template = "{series}_{number}" }))
+    assert.equals("/root/One Piece/One Piece-Romance Dawn-0001.cbz",
+      DownloadPath.forBook("/root", "One Piece", 1, nil,
+        { template = "{series}-{title}-{number}", title = "Romance Dawn" }))
+  end)
+  it("drops the series folder for flat naming", function()
+    assert.equals("/root/One Piece_0001.cbz",
+      DownloadPath.forBook("/root", "One Piece", 1, nil, { template = "{series}_{number}", flat = true }))
+  end)
+  it("still appends the disambiguating suffix before the extension", function()
+    assert.equals("/root/X/0000_b1.cbz",
+      DownloadPath.forBook("/root", "X", 0, "b1", { template = "{number}" }))
+  end)
 end)

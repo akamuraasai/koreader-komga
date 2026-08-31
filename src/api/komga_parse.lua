@@ -88,6 +88,7 @@ function KomgaParse.parseBooksPage(t)
       seriesTitle = b.seriesTitle,
       number = md.number or "?",
       sort = md.numberSort or 0,
+      title = md.title,
       completed = completed,
       inProgress = hasProgress and not completed,
     }

@@ -453,6 +453,22 @@ describe("Komga plugin — UI integration (real KOReader frontend)", function()
       assert.is_truthy(menu.item_table[2].text:find("⤓", 1, true))   -- second twin: downloaded
       os.remove(plan[2].dest)
     end)
+
+    it("marks downloaded chapters through a custom naming template", function()
+      local dir = tmpdir()
+      local books = {
+        { id = "n1", seriesTitle = "Tpl", number = "1", sort = 1, completed = false, inProgress = false },
+        { id = "n2", seriesTitle = "Tpl", number = "2", sort = 2, completed = false, inProgress = false },
+      }
+      util.makePath(dir .. "/Tpl")
+      local f = io.open(dir .. "/Tpl/Tpl_0001.cbz", "w"); f:write("x"); f:close()
+      ChapterPicker.show({ title = "Tpl", books = books, download_dir = dir,
+        naming = { template = "{series}_{number}" } }, function() end)
+      local menu = last_menu()
+      assert.is_truthy(menu.item_table[1].text:find("⤓", 1, true))
+      assert.is_nil(menu.item_table[2].text:find("⤓", 1, true))
+      os.remove(dir .. "/Tpl/Tpl_0001.cbz")
+    end)
   end)
 
   describe("downloader", function()
@@ -559,6 +575,19 @@ describe("Komga plugin — UI integration (real KOReader frontend)", function()
         "first twin file missing: " .. plan[1].dest)
       assert.equals("file", lfs.attributes(plan[2].dest, "mode"),
         "second twin file missing: " .. plan[2].dest)
+    end)
+
+    it("names files by the naming template, flat under the root", function()
+      local lfs = require("libs/libkoreader-lfs")
+      local dir = tmpdir()
+      local mixed = {
+        { id = "a", seriesTitle = "One Piece", number = "1", sort = 1, title = "Romance Dawn" },
+        { id = "b", seriesTitle = "Naruto",    number = "5", sort = 5 },
+      }
+      Downloader.run(fake_api({ downloadBook = writer() }), dir, mixed, nil,
+        { template = "{series}-{title}-{number}", flat = true })
+      assert.equals("file", lfs.attributes(dir .. "/One Piece-Romance Dawn-0001.cbz", "mode"))
+      assert.equals("file", lfs.attributes(dir .. "/Naruto-0005.cbz", "mode"))
     end)
   end)
 

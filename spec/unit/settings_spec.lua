@@ -54,6 +54,19 @@ describe("Settings:downloadDir", function()
   end)
 end)
 
+describe("Settings:naming", function()
+  it("defaults to the historical {number} name inside per-series folders", function()
+    local s = Settings.new()
+    assert.same({ template = "{number}", flat = false }, s:naming())
+  end)
+  it("reflects a custom template and a disabled series subfolder", function()
+    local s = Settings.new()
+    s:set("filename_template", "{series}_{number}")
+    s:set("series_subfolder", false)
+    assert.same({ template = "{series}_{number}", flat = true }, s:naming())
+  end)
+end)
+
 teardown(function()
   package.loaded["datastorage"]     = _saved.ds
   package.loaded["luasettings"]     = _saved.ls
