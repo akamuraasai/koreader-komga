@@ -1,0 +1,38 @@
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+-- Copyright (C) 2026 Jonathan Willian
+
+require("spec.helper")
+local SS = require("domain/selection_state")
+
+describe("SelectionState", function()
+  it("counts selections idempotently", function()
+    local s = SS.new()
+    SS.set(s, "a", true)
+    SS.set(s, "a", true)            -- double-on stays 1
+    assert.equals(1, s.count)
+    assert.is_true(SS.has(s, "a"))
+  end)
+  it("never goes negative when clearing an unset id", function()
+    local s = SS.new()
+    SS.set(s, "a", false)
+    assert.equals(0, s.count)
+    SS.set(s, "a", true); SS.set(s, "a", false); SS.set(s, "a", false)
+    assert.equals(0, s.count)
+    assert.is_false(SS.has(s, "a"))
+  end)
+  it("clear resets to empty", function()
+    local s = SS.new()
+    SS.set(s, "a", true); SS.set(s, "b", true)
+    SS.clear(s)
+    assert.equals(0, s.count)
+    assert.is_false(SS.has(s, "a"))
+  end)
+  it("prune drops ids absent from the present set and recomputes count", function()
+    local s = SS.new()
+    SS.set(s, "a", true); SS.set(s, "b", true); SS.set(s, "c", true)
+    SS.prune(s, { a = true, c = true })   -- b no longer present
+    assert.equals(2, s.count)
+    assert.is_false(SS.has(s, "b"))
+    assert.is_true(SS.has(s, "a"))
+  end)
+end)

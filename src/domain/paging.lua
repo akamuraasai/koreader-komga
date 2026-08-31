@@ -11,4 +11,8 @@ function Paging.firstVisibleIndex(page, perpage)
   return (page - 1) * perpage + 1
 end
 
+function Paging.hasMore(page, totalPages)
+  return page < (totalPages or 1)
+end
+
 return Paging

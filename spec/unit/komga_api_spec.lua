@@ -178,6 +178,80 @@ describe("KomgaApi flat-list endpoints", function()
   end)
 end)
 
+describe("KomgaApi._download resource handling", function()
+  it("closes the file handle even when the request fails before any response", function()
+    local closed = false
+    local saved_open = io.open
+    local saved = {
+      http = package.loaded["socket.http"],
+      sock = package.loaded["socket"],
+      sutil = package.loaded["socketutil"],
+    }
+    io.open = function() return { close = function() closed = true end } end
+    package.loaded["socket.http"] = { request = function() return nil, "connection refused" end }
+    package.loaded["socket"] = { skip = function(_n, _a, b) return b end }  -- skip(1, nil, err) -> err
+    package.loaded["socketutil"] = {
+      FILE_BLOCK_TIMEOUT = 1, FILE_TOTAL_TIMEOUT = 1,
+      set_timeout = function() end, reset_timeout = function() end,
+      file_sink = function() return function() end end,
+    }
+    local api = KomgaApi.new{ base_url = "https://k", api_key = "KEY" }
+    local ok, code = pcall(function() return api:_download("https://k/file", "/tmp/x.cbz") end)
+    io.open = saved_open
+    package.loaded["socket.http"] = saved.http
+    package.loaded["socket"] = saved.sock
+    package.loaded["socketutil"] = saved.sutil
+    assert(ok, code)
+    assert.is_true(closed)
+    assert.equals("connection refused", code)
+  end)
+end)
+
+describe("KomgaApi._getJson decode failure", function()
+  it("returns (code, nil) when the body is 200 but not valid JSON", function()
+    local saved = {
+      http  = package.loaded["socket.http"],
+      sock  = package.loaded["socket"],
+      ltn12 = package.loaded["ltn12"],
+      sutil = package.loaded["socketutil"],
+      rjson = package.loaded["rapidjson"],
+    }
+    package.loaded["socket.http"] = { request = function(t) t.sink("garbage"); t.sink(nil); return 1, 200 end }
+    package.loaded["socket"] = { skip = function(_n, _a, code) return code end }  -- skip(1, 1, 200) -> 200
+    package.loaded["ltn12"] = { sink = { table = function(chunks) return function(c) if c then chunks[#chunks+1] = c end return 1 end end } }
+    package.loaded["socketutil"] = {
+      LARGE_BLOCK_TIMEOUT = 1, LARGE_TOTAL_TIMEOUT = 1,
+      set_timeout = function() end, reset_timeout = function() end,
+    }
+    package.loaded["rapidjson"] = { decode = function() error("parse error") end }
+    local api = KomgaApi.new{ base_url = "https://k", api_key = "KEY" }
+    local ok, code, body = pcall(function() return api:_getJson("https://k/api/v1/series?page=0") end)
+    package.loaded["socket.http"] = saved.http
+    package.loaded["socket"]      = saved.sock
+    package.loaded["ltn12"]       = saved.ltn12
+    package.loaded["socketutil"]  = saved.sutil
+    package.loaded["rapidjson"]   = saved.rjson
+    assert(ok, code)
+    assert.equals(200, code)
+    assert.is_nil(body)
+  end)
+end)
+
+describe("KomgaApi.searchSeriesPage", function()
+  it("requests a single capped page (does not walk all pages)", function()
+    local api = KomgaApi.new{ base_url = "https://k", api_key = "KEY" }
+    local n = 0
+    api._getJson = function(_, url)
+      n = n + 1
+      assert(url:find("size=200"))
+      return 200, { totalPages = 9, content = { { id = "S1", metadata = { title = "A" } } } }
+    end
+    local res = assert(api:searchSeriesPage(""))
+    assert.equals(1, n)
+    assert.equals(1, #res.items)
+  end)
+end)
+
 describe("KomgaApi.fetchAllPages edge cases", function()
   it("stops at the MAX_PAGES cap even if the server keeps reporting more pages", function()
     local api = KomgaApi.new{ base_url = "https://k", api_key = "KEY" }

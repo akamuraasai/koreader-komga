@@ -7,14 +7,16 @@ local InputDialog = require("ui/widget/inputdialog")
 local ButtonDialog = require("ui/widget/buttondialog")
 local lfs = require("libs/libkoreader-lfs")
 local Selection = require("domain/selection")
-local DownloadPath = require("domain/download_path")
-local ChapterRow = require("views/chapter_row")
+local SelectionState = require("domain/selection_state")
+local DownloadPlan = require("domain/download_plan")
+local ChapterList = require("views/chapter_list")
 local Paging = require("domain/paging")
 local KomgaParse = require("api/komga_parse")
 local UiUtil = require("views/ui_util")
 local _ = require("gettext")
+local T = require("ffi/util").template
 
-local DEFAULT_NEXT_N = 20  -- default count for the "Next N unread" prompt
+local DEFAULT_NEXT_N = 20
 
 local ChapterPicker = {}
 
@@ -26,51 +28,29 @@ local ChapterPicker = {}
 --   download_dir = string | nil,     -- enables the "already downloaded" marker
 -- }
 function ChapterPicker.show(opts, on_download)
-  local books, selected, downloaded, menu = opts.books or {}, {}, {}, nil
-  local selected_count = 0
+  local books = opts.books or {}
+  local sel, downloaded, bases, menu = SelectionState.new(), {}, {}, nil
+  local function has(id) return SelectionState.has(sel, id) end
 
-  -- Maintain the selected count incrementally so rebuild() (run on every tap) and the
-  -- actions popup read it in O(1) instead of rescanning the whole selection each time.
-  local function setSelected(id, on)
-    on = on and true or nil
-    if on == selected[id] then return end
-    selected[id] = on
-    selected_count = selected_count + (on and 1 or -1)
-  end
-
-  local function clearSelected()
-    selected, selected_count = {}, 0
-  end
-
-  -- Compute on-disk presence ONCE per (re)load and cache it; never stat per keystroke
-  -- (a filesystem stat per row on every toggle would be slow on e-ink).
   local function refreshDownloaded()
     downloaded = {}
-    if not opts.download_dir then return end
-    for _, b in ipairs(books) do
-      local path = DownloadPath.forBook(opts.download_dir, b.seriesTitle, b.sort)
-      if lfs.attributes(path, "mode") == "file" then downloaded[b.id] = true end
+    if opts.download_dir then
+      for _, item in ipairs(DownloadPlan.resolve(books, opts.download_dir)) do
+        if lfs.attributes(item.dest, "mode") == "file" then downloaded[item.book.id] = true end
+      end
     end
+    bases = ChapterList.precompute(books, downloaded)
   end
 
   local function rebuild()
-    local items = {}
-    if #books == 0 then
-      items[#items + 1] = { text = _("No items") }
-    end
-    for _, b in ipairs(books) do
-      items[#items + 1] = {
-        text = ChapterRow.format(b, selected[b.id], downloaded[b.id]),
-        book = b,
-      }
-    end
-    -- Keep the menu on the current page across the rebuild.
     local first = Paging.firstVisibleIndex(menu.page, menu.perpage)
-    menu:switchItemTable(opts.title .. "  [" .. selected_count .. "]", items, first)
+    -- Full repaint is inherent to KOReader's Menu; row base (buildItems) is cached per load, so per-tap cost is repaint, not string building.
+    menu:switchItemTable(ChapterList.title(opts.title, sel.count),
+      ChapterList.buildItems(books, bases, has), first)
   end
 
   local function selectIds(ids)
-    for _, id in ipairs(ids) do setSelected(id, true) end
+    for _, id in ipairs(ids) do SelectionState.set(sel, id, true) end
     rebuild()
   end
 
@@ -78,18 +58,20 @@ function ChapterPicker.show(opts, on_download)
     if not opts.fetch then return end
     UiUtil.loadWithTrapper(_("Loading chapters…"), opts.fetch, function(res)
       books = res.items
+      local present = {}
+      for _, b in ipairs(books) do present[b.id] = true end
+      SelectionState.prune(sel, present)
       refreshDownloaded()
       rebuild()
     end)
   end
 
   local function startDownload()
-    local chosen = {}
-    for _, b in ipairs(books) do if selected[b.id] then chosen[#chosen + 1] = b end end
+    local chosen = Selection.chosen(books, has)
     if #chosen == 0 then
       UIManager:show(InfoMessage:new{ text = _("Nothing selected.") })
     else
-      on_download(chosen)
+      on_download(chosen, books)
     end
   end
 
@@ -103,39 +85,37 @@ function ChapterPicker.show(opts, on_download)
     UIManager:show(i); i:onShowKeyboard()
   end
 
-  -- Actions live behind the title-bar menu icon (always visible on every page, and
-  -- a real button popup — KOReader's Menu has no native footer button row, and a
-  -- composed full-screen bottom bar freezes the repaint loop on e-ink). The popup is
-  -- rebuilt on each open so the Download count is current.
+  -- Actions live behind the title-bar menu icon (a real button popup -- KOReader's Menu
+  -- has no footer button row, and a composed bottom bar freezes the e-ink repaint loop).
+  -- Rebuilt on each open so the Download count is current.
   local function actionsDialog()
     local dlg
     local function close() UIManager:close(dlg) end
-    local rows = {
-      {{ text = _("Select unread"), callback = function() close(); selectIds(Selection.unreadIds(books)) end }},
+    local spec = {
+      { _("Select unread"), function() selectIds(Selection.unreadIds(books)) end },
+      { _("Next N unread…"), promptNextN, not opts.mixed },
+      { _("Select all"), function() selectIds(Selection.allIds(books)) end },
+      { _("Clear"), function() SelectionState.clear(sel); rebuild() end },
+      { "⬇ " .. T(_("Download (%1)"), sel.count), function() startDownload() end },
+      { "↻ " .. _("Refresh"), function() reload() end },
     }
-    if not opts.mixed then
-      rows[#rows + 1] = {{ text = _("Next N unread…"), callback = function() close(); promptNextN() end }}
+    local rows = {}
+    for _, a in ipairs(spec) do
+      if a[3] == nil or a[3] then
+        rows[#rows + 1] = {{ text = a[1], callback = function() close(); a[2]() end }}
+      end
     end
-    rows[#rows + 1] = {{ text = _("Select all"), callback = function()
-        close(); for _, b in ipairs(books) do setSelected(b.id, true) end; rebuild() end }}
-    rows[#rows + 1] = {{ text = _("Clear"), callback = function() close(); clearSelected(); rebuild() end }}
-    rows[#rows + 1] = {{ text = "⬇ " .. _("Download") .. " (" .. selected_count .. ")",
-        callback = function() close(); startDownload() end }}
-    rows[#rows + 1] = {{ text = "↻ " .. _("Refresh"), callback = function() close(); reload() end }}
     dlg = ButtonDialog:new{ buttons = rows }
     UIManager:show(dlg)
   end
 
-  -- The Menu exposes only the LEFT title-bar icon for custom use (the right is always
-  -- its close button); "appbar.menu" is a valid icon in KOReader's set. Actions live
-  -- behind it as a real button popup -- see actionsDialog.
   menu = UiUtil.fullscreenMenu{
     title = opts.title,
     title_bar_left_icon = "appbar.menu",
     onLeftButtonTap = function() actionsDialog() end,
     onMenuSelect = function(_self, item)
       if item.book then
-        setSelected(item.book.id, not selected[item.book.id])
+        SelectionState.set(sel, item.book.id, not has(item.book.id))
         rebuild()
       end
     end,

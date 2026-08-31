@@ -3,10 +3,10 @@
 
 local DownloadDir = {}
 
--- Resolve the download ROOT, in priority order: file-manager home > device home >
--- data dir, then append "/Komga". Pure (testable without the KOReader runtime).
--- A user-set custom dir is returned verbatim by the caller before reaching here.
-function DownloadDir.resolve(homeSetting, deviceHome, dataDir)
+-- A non-empty custom dir wins verbatim; otherwise pick the first available public root
+-- (file-manager home > device home > data dir) and append "/Komga". Pure.
+function DownloadDir.resolve(custom, homeSetting, deviceHome, dataDir)
+  if custom and custom ~= "" then return custom end
   return (homeSetting or deviceHome or dataDir) .. "/Komga"
 end
 

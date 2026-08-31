@@ -24,7 +24,10 @@ Open the top menu → **Komga → Settings** (under **Tools**), enter your serve
 ![The server settings dialog](assets/screenshots/settings.png){ width="320" }
 
 !!! note
-    The key is stored locally in plaintext (KOReader has no credential encryption).
+    The key and server URL are stored in plaintext in KOReader's settings file — KOReader
+    provides no credential encryption. The key is transmitted only in the `X-API-Key` request
+    header and is never placed in a URL or written to logs; it is masked in the config dialog
+    (password field). On a shared device, rely on device-level access controls.
 
 ## 4. Open the home hub
 

@@ -2,6 +2,7 @@
 -- Copyright (C) 2026 Jonathan Willian
 
 local KomgaParse = require("api/komga_parse")
+local Paging = require("domain/paging")
 
 local KomgaApi = {}
 KomgaApi.__index = KomgaApi
@@ -12,7 +13,7 @@ local RECENCY_SIZE = 200  -- single-page size for the "latest"/"new" recency vie
 
 function KomgaApi.new(opts)
   return setmetatable({
-    base_url = (opts.base_url or ""):gsub("/+$", ""),
+    base_url = KomgaParse.normalizeBase(opts.base_url),
     api_key = opts.api_key,
   }, KomgaApi)
 end
@@ -51,6 +52,10 @@ function KomgaApi:_download(url, dest_path)
     sink = socketutil.file_sink(fh),
   })
   socketutil:reset_timeout()
+  -- socketutil.file_sink closes fh on end-of-stream/timeout, but NOT on a transport
+  -- failure before any response (connection refused, DNS, TLS) -- the sink never runs.
+  -- Close defensively so the caller's os.remove acts on a closed handle (matters on FAT/exFAT).
+  pcall(function() fh:close() end)
   return code
 end
 
@@ -64,9 +69,9 @@ local function fetchAllPages(self, buildUrl, parse)
     local parsed = parse(body)
     for _, it in ipairs(parsed.items) do items[#items + 1] = it end
     page = page + 1
-    if page >= (body.totalPages or 1) or #parsed.items == 0 then break end
+    if not Paging.hasMore(page, parsed.totalPages) or #parsed.items == 0 then break end
   end
-  return { total = #items, items = items }
+  return { items = items }
 end
 
 -- Fetch a single endpoint and parse it. `label` ("books"/"series") tags the error.
@@ -80,6 +85,12 @@ function KomgaApi:searchSeriesAll(query)
   return fetchAllPages(self, function(page, size)
     return KomgaParse.buildSeriesSearchUrl(self.base_url, query, page, size)
   end, KomgaParse.parseSeriesPage)
+end
+
+-- Initial, capped "All" view (one RECENCY_SIZE page). Explicit queries use searchSeriesAll.
+function KomgaApi:searchSeriesPage(query)
+  return fetchOne(self, KomgaParse.buildSeriesSearchUrl(self.base_url, query, 0, RECENCY_SIZE),
+    KomgaParse.parseSeriesPage, "series")
 end
 
 function KomgaApi:listBooks(seriesId)

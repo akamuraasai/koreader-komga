@@ -22,9 +22,14 @@ function ChapterRow.base(book, isDownloaded)
   return (book.seriesTitle or "?") .. " #" .. tostring(book.number) .. ChapterRow.status(book, isDownloaded)
 end
 
+-- Compose the full row from a precomputed base, varying only the checkbox (O(1) per tap).
+function ChapterRow.fromBase(base, isSelected)
+  return (isSelected and CHECK or UNCHECK) .. base
+end
+
 -- Full row text: "<checkbox><seriesTitle> #<number><status>".
 function ChapterRow.format(book, isSelected, isDownloaded)
-  return (isSelected and CHECK or UNCHECK) .. ChapterRow.base(book, isDownloaded)
+  return ChapterRow.fromBase(ChapterRow.base(book, isDownloaded), isSelected)
 end
 
 return ChapterRow

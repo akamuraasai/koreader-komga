@@ -39,7 +39,7 @@ function HomeBrowser.show(api, ctx)
         CollectionsBrowser.show(api, ctx) end },
     { text = C_("Search text", "All"), callback = function()
         openSeries(_("Series"),
-          function() return api:searchSeriesAll("") end,
+          function() return api:searchSeriesPage("") end,
           function(q) return api:searchSeriesAll(q) end) end },
   }
 

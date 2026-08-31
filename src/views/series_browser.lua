@@ -17,21 +17,15 @@ function SeriesBrowser.show(opts, on_pick)
   local menu
 
   local function fillItems(res)
-    local items = {}
-    if opts.search then items[#items + 1] = { text = _("Search"), is_search = true } end
-    items[#items + 1] = { text = "↻ " .. _("Refresh"), is_refresh = true }
+    local rows = {}
     for _, s in ipairs(res.items or {}) do
-      items[#items + 1] = {
-        text = string.format("%s  (%d/%d)", s.title, s.unread, s.booksCount),
-        series = s,
-      }
+      rows[#rows + 1] = { text = string.format("%s  (%d/%d)", s.title, s.unread, s.booksCount), series = s }
     end
-    if #(res.items or {}) == 0 then items[#items + 1] = { text = _("No items") } end
-    menu:switchItemTable(opts.title, items)
+    UiUtil.listMenu(menu, opts.title, rows, { search = opts.search ~= nil })
   end
 
   local function load(fetch)
-    UiUtil.loadWithTrapper(_("Searching…"), fetch, fillItems)
+    UiUtil.loadWithTrapper(_("Searching…"), fetch, fillItems, function() fillItems({ items = {} }) end)
   end
 
   local function openSearch()
